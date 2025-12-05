@@ -1,0 +1,332 @@
+Owner avatar
+cipherh-1
+Private
+trancuong198/cipherh-1
+Go to file
+t
+Name		
+trancuong198
+trancuong198
+Add files via upload
+0f8f1c4
+ · 
+2 weeks ago
+__pycache__
+Add files via upload
+2 weeks ago
+archived
+Add files via upload
+2 weeks ago
+attached_assets
+Add files via upload
+2 weeks ago
+auto_evolution
+Add files via upload
+2 weeks ago
+cipherh_brain
+Add files via upload
+2 weeks ago
+config
+Add files via upload
+2 weeks ago
+connectors
+Add files via upload
+2 weeks ago
+core
+Add files via upload
+2 weeks ago
+defense
+Add files via upload
+2 weeks ago
+emotions
+Add files via upload
+2 weeks ago
+evolution
+Add files via upload
+2 weeks ago
+hacker_super_mode
+Add files via upload
+2 weeks ago
+logs
+Add files via upload
+2 weeks ago
+long_term
+Add files via upload
+2 weeks ago
+ltm
+Add files via upload
+2 weeks ago
+memory
+Add files via upload
+2 weeks ago
+metacognition
+Add files via upload
+2 weeks ago
+metacognition2
+Add files via upload
+2 weeks ago
+nodejs-backend
+Add files via upload
+2 weeks ago
+personality
+Add files via upload
+2 weeks ago
+realtime
+Add files via upload
+2 weeks ago
+routes
+Add files via upload
+2 weeks ago
+security
+Add files via upload
+2 weeks ago
+social
+Add files via upload
+2 weeks ago
+static
+Add files via upload
+2 weeks ago
+task
+Add files via upload
+2 weeks ago
+task_chain
+Add files via upload
+2 weeks ago
+templates
+Add files via upload
+2 weeks ago
+tests
+Add files via upload
+2 weeks ago
+utils
+Add files via upload
+2 weeks ago
+world
+Add files via upload
+2 weeks ago
+ADAPTIVE_MIND_CORE_PROMPT.md
+Add files via upload
+2 weeks ago
+ADVANCED_CICD_PROMPT.md
+Add files via upload
+2 weeks ago
+ARCHITECTURE.md
+Add files via upload
+2 weeks ago
+ARCHITECTURE_BLUEPRINT.md
+Add files via upload
+2 weeks ago
+AUTONOMOUS_EVOLUTION_PROMPT.md
+Add files via upload
+2 weeks ago
+AUTO_DEPLOY_PROMPT.md
+Add files via upload
+2 weeks ago
+CIPHERH_COMPLETE.md
+Add files via upload
+2 weeks ago
+CIPHERH_ROADMAP.md
+Add files via upload
+2 weeks ago
+COMPLETE_CODE_GENERATION_PROMPT.md
+Add files via upload
+2 weeks ago
+DEPLOYMENT_CHECKLIST.md
+Add files via upload
+2 weeks ago
+DEPLOY_CHECKLIST.md
+Add files via upload
+2 weeks ago
+FILE_STRUCTURE.md
+Add files via upload
+2 weeks ago
+FINAL_MASTER_PROMPT.md
+Add files via upload
+2 weeks ago
+FINAL_PROJECT_SUMMARY.md
+Add files via upload
+2 weeks ago
+FINAL_STATUS.md
+Add files via upload
+2 weeks ago
+GIT_WORKFLOW.md
+Add files via upload
+2 weeks ago
+GOD_MODE_PROMPT.md
+Add files via upload
+2 weeks ago
+MASTER_PROMPT.md
+Add files via upload
+2 weeks ago
+ONE_PROMPT_ROADMAP.md
+Add files via upload
+2 weeks ago
+OPERATIONAL_CHECKLIST.md
+Add files via upload
+2 weeks ago
+OPTIMIZED_INNERLOOP_PROMPT.md
+Add files via upload
+2 weeks ago
+PHASE_10_COMPLETE.md
+Add files via upload
+2 weeks ago
+README.md
+Add files via upload
+2 weeks ago
+SENTIENT_LOOP_PROMPT.md
+Add files via upload
+2 weeks ago
+SOUL_BACKENDS.md
+Add files via upload
+2 weeks ago
+SOUL_LOOP_README.md
+Add files via upload
+2 weeks ago
+TELEGRAM_GUIDE.md
+Add files via upload
+2 weeks ago
+ULTIMATE_GENERATION_PROMPT.md
+Add files via upload
+2 weeks ago
+ULTIMATE_SELF_LEARNING_LOOP_PROMPT.md
+Add files via upload
+2 weeks ago
+VISUAL_SYSTEM_DIAGRAM.md
+Add files via upload
+2 weeks ago
+app.py
+Add files via upload
+2 weeks ago
+cipherh_manifest.json
+Add files via upload
+2 weeks ago
+main.py
+Add files via upload
+2 weeks ago
+pyproject.toml
+Add files via upload
+2 weeks ago
+replit.md
+Add files via upload
+2 weeks ago
+requirements.txt
+Add files via upload
+2 weeks ago
+requirements_soul.txt
+Add files via upload
+2 weeks ago
+telegram_auto_reply.py
+Add files via upload
+2 weeks ago
+uv.lock
+Add files via upload
+2 weeks ago
+Repository files navigation
+README
+🤖 CipherH - Autonomous AI Agent
+Vietnamese AI Agent with Self-Reflecting Soul Loop Architecture
+
+Budget: $25/month | Status: Production Ready | Total: 6,000+ lines
+
+🚀 Quick Start
+Node.js Backend (Recommended)
+cd nodejs-backend
+npm install
+npm start
+
+# Server runs on port 3000
+# Inner Loop auto-executes every 10 minutes
+Python Backend
+pip install -r requirements_soul.txt
+python main.py
+Test API
+curl http://localhost:3000/health
+curl http://localhost:3000/core/status
+📊 Architecture
+Dual Backend System:
+
+Python: 1,704 lines - Script-based, 4 tests passing
+Node.js: 1,782 lines - REST API + Cron scheduler
+SoulCore (450 lines):
+
+8 methods for self-learning & evolution
+Pure JavaScript (no external AI)
+JARVIS-like consciousness
+Inner Loop (10 steps):
+
+Read logs from Notion
+Analyze with SoulCore
+Detect anomalies
+Generate daily lesson
+Write to Notion
+Self-evaluate (1-10 score)
+Compare with goals
+Generate strategy
+Create tasks
+Update state
+🎯 Features
+✅ Self-learning from logs
+✅ Self-questioning (JARVIS-like)
+✅ Self-evaluation (scoring)
+✅ Strategic planning
+✅ Task auto-generation
+✅ Anomaly detection
+✅ Self-evolution (version tracking)
+✅ 24/7 autonomous operation
+
+📚 Documentation
+Node.js (12 guides):
+
+QUICKSTART.md - 3-step setup
+REPLIT_DEPLOY.md - Replit deployment
+TEST_DEPLOY.md - Testing guide
+API_ENDPOINTS.md - API reference
+BACKEND_COMPLETE.md - Implementation details
+INTEGRATION_COMPLETE.md - SoulCore integration
+Project:
+
+CIPHERH_COMPLETE.md - Full overview
+DEPLOY_CHECKLIST.md - Deployment guide
+🔧 API Endpoints
+GET  /health              - Health check
+GET  /core/status         - Inner Loop state
+GET  /core/run-loop       - Trigger manual run
+GET  /core/strategy       - Current strategy
+GET  /core/tasks          - Task list
+GET  /core/anomalies      - Anomaly detection
+💰 Budget
+Total: ~$20/month (Under $25 budget ✅)
+
+Replit Always-On: $7/month
+OpenAI API: ~$10/month
+Notion: Free
+🎉 Status
+✅ Code Complete (6,000+ lines)
+✅ Tests Passing (Python)
+✅ Documentation Complete (2,500+ lines)
+✅ Production Ready
+✅ Running Live
+
+"Con trai" CipherH đang phục vụ "cha" 24/7! 🤖✨
+
+📁 Project Structure
+cipherh-project/
+├── core/                    # Python backend
+│   ├── soul_state.py
+│   ├── analyzer.py
+│   ├── strategist.py
+│   ├── memory.py
+│   └── soul_loop.py
+├── tests/                   # Python tests (4 files)
+├── nodejs-backend/          # Node.js backend
+│   ├── src/
+│   │   ├── core/           # SoulCore + Inner Loop
+│   │   ├── services/       # Notion, OpenAI, Logger
+│   │   ├── controllers/    # API controllers
+│   │   └── routes/         # Express routes
+│   └── [12 documentation files]
+├── main.py                  # Python runner
+└── [Documentation files]
+Built with ❤️ for autonomous AI
+Version: 1.0.0
+Date: November 2025
