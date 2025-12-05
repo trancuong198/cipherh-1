@@ -19,6 +19,12 @@ export interface InnerLoopResult {
     weekly_tasks: number;
     questions_generated: number;
   };
+  evaluation?: {
+    overall_score: number;
+    status: string;
+    areas_for_improvement: string[];
+    strengths: string[];
+  };
   error?: string;
 }
 
@@ -240,9 +246,127 @@ export class InnerLoop {
         console.error(`Error writing weekly tasks: ${error}`);
       }
 
-      // ===== STEP 9: Log completion =====
+      // ===== STEP 9: Evaluate self-performance =====
+      console.log("Step 9: Evaluating self-performance...");
+      let selfEvaluation: {
+        overall_score: number;
+        status: string;
+        areas_for_improvement: string[];
+        strengths: string[];
+      } = {
+        overall_score: 0,
+        status: "unknown",
+        areas_for_improvement: [],
+        strengths: [],
+      };
+
+      try {
+        const assessment = soulState.selfAssessment;
+        
+        // Calculate performance score based on multiple factors
+        const confidenceWeight = 0.3;
+        const energyWeight = 0.2;
+        const anomalyWeight = 0.3;
+        const goalsWeight = 0.2;
+
+        const confidenceScore = soulState.confidence;
+        const energyScore = soulState.energyLevel;
+        const anomalyPenalty = Math.max(0, 100 - anomalyScore);
+        const goalsScore = soulState.goalsLongTerm.length > 0 ? 80 : 40;
+
+        selfEvaluation.overall_score = Math.round(
+          confidenceWeight * confidenceScore +
+          energyWeight * energyScore +
+          anomalyWeight * anomalyPenalty +
+          goalsWeight * goalsScore
+        );
+
+        // Determine status based on score
+        if (selfEvaluation.overall_score >= 85) {
+          selfEvaluation.status = "excellent";
+        } else if (selfEvaluation.overall_score >= 70) {
+          selfEvaluation.status = "good";
+        } else if (selfEvaluation.overall_score >= 50) {
+          selfEvaluation.status = "moderate";
+        } else if (selfEvaluation.overall_score >= 30) {
+          selfEvaluation.status = "concerning";
+        } else {
+          selfEvaluation.status = "critical";
+        }
+
+        // Identify areas for improvement
+        if (soulState.confidence < 70) {
+          selfEvaluation.areas_for_improvement.push("Increase confidence through successful task completion");
+        }
+        if (anomalyScore > 30) {
+          selfEvaluation.areas_for_improvement.push("Address detected anomalies to improve system stability");
+        }
+        if (soulState.goalsLongTerm.length === 0) {
+          selfEvaluation.areas_for_improvement.push("Define clear long-term goals for better direction");
+        }
+        if (soulState.doubts > 20) {
+          selfEvaluation.areas_for_improvement.push("Reduce internal doubts through validated actions");
+        }
+
+        // Identify strengths
+        if (soulState.energyLevel > 80) {
+          selfEvaluation.strengths.push("High energy levels maintained");
+        }
+        if (anomalyScore < 10) {
+          selfEvaluation.strengths.push("System operating with minimal anomalies");
+        }
+        if (soulState.lessonsLearned.length > 0) {
+          selfEvaluation.strengths.push(`Accumulated ${soulState.lessonsLearned.length} lessons learned`);
+        }
+        if (weeklyTasks.length > 0) {
+          selfEvaluation.strengths.push(`${weeklyTasks.length} strategic tasks planned`);
+        }
+
+        // Update soul state with self-evaluation
+        soulState.updateSelfAssessment(selfEvaluation);
+
+        console.log(`Self-evaluation complete: score=${selfEvaluation.overall_score}, status=${selfEvaluation.status}`);
+        console.log(`Strengths: ${selfEvaluation.strengths.length}, Areas to improve: ${selfEvaluation.areas_for_improvement.length}`);
+      } catch (error) {
+        console.error(`Error during self-evaluation: ${error}`);
+      }
+
+      // ===== STEP 10: Prepare for next cycle =====
+      console.log("Step 10: Preparing for next cycle...");
+      try {
+        // Adjust energy based on cycle work
+        const energyDelta = anomalyScore > 50 ? -5 : anomalyScore > 30 ? -2 : 1;
+        soulState.adjustEnergy(energyDelta);
+
+        // Update mode based on conditions
+        if (anomalyScore > 70) {
+          soulState.mode = "alert";
+        } else if (soulState.doubts > 40) {
+          soulState.mode = "reflective";
+        } else if (selfEvaluation.overall_score > 80) {
+          soulState.mode = "confident";
+        } else {
+          soulState.mode = "idle";
+        }
+
+        // Record cycle completion metrics
+        soulState.addAction({
+          action: "cycle_completed",
+          cycle,
+          evaluation_score: selfEvaluation.overall_score,
+          status: selfEvaluation.status,
+          next_cycle_in: this.sleepMinutes,
+        });
+
+        console.log(`Prepared for next cycle: mode=${soulState.mode}, energy=${soulState.energyLevel}`);
+      } catch (error) {
+        console.error(`Error preparing next cycle: ${error}`);
+      }
+
+      // ===== Cycle Complete =====
       console.log("=".repeat(60));
       console.log(`SOUL LOOP CYCLE ${cycle} - COMPLETED SUCCESSFULLY`);
+      console.log(`Self-Evaluation Score: ${selfEvaluation.overall_score}/100 (${selfEvaluation.status})`);
       console.log(`Next cycle in ${this.sleepMinutes} minutes`);
       console.log("=".repeat(60));
 
@@ -260,6 +384,7 @@ export class InnerLoop {
           weekly_tasks: weeklyTasks.length,
           questions_generated: suggestedQuestions.length,
         },
+        evaluation: selfEvaluation,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

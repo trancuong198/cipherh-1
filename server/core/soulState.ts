@@ -1,7 +1,7 @@
 // CipherH Soul State Manager
 // JARVIS-like state với cảm xúc, mục tiêu, hoài nghi, phản tư
 
-export type SoulMode = "idle" | "active" | "learning" | "reflecting" | "strategizing" | "doubting";
+export type SoulMode = "idle" | "active" | "learning" | "reflecting" | "strategizing" | "doubting" | "alert" | "reflective" | "confident";
 
 export interface PersonalityTraits {
   curious: boolean;
@@ -20,6 +20,9 @@ export interface ActionRecord {
   action: string;
   cycle: number;
   anomaly_score?: number;
+  evaluation_score?: number;
+  status?: string;
+  next_cycle_in?: number;
   executed_at: string;
 }
 
@@ -256,7 +259,14 @@ export class SoulState {
     }
   }
 
-  addAction(action: { action: string; cycle: number; anomaly_score?: number }): void {
+  addAction(action: { 
+    action: string; 
+    cycle: number; 
+    anomaly_score?: number;
+    evaluation_score?: number;
+    status?: string;
+    next_cycle_in?: number;
+  }): void {
     this.lastActions.push({
       ...action,
       executed_at: new Date().toISOString(),
@@ -265,6 +275,28 @@ export class SoulState {
     if (this.lastActions.length > 50) {
       this.lastActions.shift();
     }
+  }
+
+  updateSelfAssessment(evaluation: {
+    overall_score: number;
+    status: string;
+    areas_for_improvement: string[];
+    strengths: string[];
+  }): void {
+    this.metadata.last_evaluation = {
+      ...evaluation,
+      timestamp: new Date().toISOString(),
+    };
+    this.metadata.areas_for_improvement = evaluation.areas_for_improvement;
+    this.metadata.strengths = evaluation.strengths;
+  }
+
+  adjustEnergy(delta: number): void {
+    this.energyLevel = Math.max(0, Math.min(100, this.energyLevel + delta));
+  }
+
+  get selfAssessment(): SelfAssessment {
+    return this.scoreSelf();
   }
 
   clearMemoryBuffer(): void {
