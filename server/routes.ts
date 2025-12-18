@@ -20,6 +20,7 @@ import { socialFeedbackEngine } from "./core/socialFeedbackEngine";
 import { communicationRefinementEngine } from "./core/communicationRefinementEngine";
 import { taskStrategySynthesisEngine } from "./core/taskStrategySynthesisEngine";
 import { operationsLimitsEngine } from "./core/operationsLimitsEngine";
+import { playbook30Days } from "./core/playbook30Days";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -523,6 +524,65 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
+  });
+
+  // ==================== PLAYBOOK 30 DAYS ====================
+  app.get("/api/playbook", (_req: Request, res: Response) => {
+    const status = playbook30Days.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/playbook/start-week/:week", (req: Request, res: Response) => {
+    const week = parseInt(req.params.week) as 1 | 2 | 3 | 4;
+    if (week < 1 || week > 4) {
+      return res.status(400).json({ error: "Week must be 1-4" });
+    }
+    playbook30Days.startWeek(week);
+    res.json({ success: true, message: `Week ${week} started` });
+  });
+
+  app.post("/api/playbook/complete-week/:week", (req: Request, res: Response) => {
+    const week = parseInt(req.params.week) as 1 | 2 | 3 | 4;
+    const { achievements } = req.body;
+    if (week < 1 || week > 4) {
+      return res.status(400).json({ error: "Week must be 1-4" });
+    }
+    playbook30Days.completeWeek(week, achievements || []);
+    res.json({ success: true, message: `Week ${week} completed` });
+  });
+
+  app.post("/api/playbook/checkpoint", (_req: Request, res: Response) => {
+    const checkpoint = playbook30Days.recordDailyCheckpoint();
+    res.json({ success: true, checkpoint });
+  });
+
+  app.post("/api/playbook/baseline", (_req: Request, res: Response) => {
+    const baseline = playbook30Days.captureBaseline();
+    res.json({ success: true, baseline });
+  });
+
+  app.post("/api/playbook/check-forbidden", (req: Request, res: Response) => {
+    const { action } = req.body;
+    if (!action) {
+      return res.status(400).json({ error: "action required" });
+    }
+    const isForbidden = playbook30Days.checkForbiddenAction(action);
+    res.json({ action, forbidden: isForbidden });
+  });
+
+  app.get("/api/playbook/monthly-report", (_req: Request, res: Response) => {
+    const report = playbook30Days.generateMonthlyReport();
+    res.json(report);
+  });
+
+  app.post("/api/playbook/note/:week", (req: Request, res: Response) => {
+    const week = parseInt(req.params.week) as 1 | 2 | 3 | 4;
+    const { note } = req.body;
+    if (week < 1 || week > 4 || !note) {
+      return res.status(400).json({ error: "Valid week (1-4) and note required" });
+    }
+    playbook30Days.addNote(week, note);
+    res.json({ success: true, message: "Note added" });
   });
 
   // ==================== OPERATIONS & AUTONOMY LIMITS ====================
