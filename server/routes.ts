@@ -17,6 +17,7 @@ import { metaEvolutionEngine } from "./core/metaEvolutionEngine";
 import { providerRegistry } from "./providers/providerRegistry";
 import { measurementEngine } from "./core/measurementEngine";
 import { socialFeedbackEngine } from "./core/socialFeedbackEngine";
+import { communicationRefinementEngine } from "./core/communicationRefinementEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -432,6 +433,94 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: socialFeedbackEngine.isEnabled() });
+  });
+
+  // ==================== COMMUNICATION REFINEMENT ====================
+  app.get("/api/communication", (_req: Request, res: Response) => {
+    const status = communicationRefinementEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/communication/refine", async (req: Request, res: Response) => {
+    const { text } = req.body;
+    
+    if (!text) {
+      res.status(400).json({ success: false, error: "Missing text" });
+      return;
+    }
+    
+    try {
+      const result = await communicationRefinementEngine.refineText(text);
+      res.json({ success: true, result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/communication/measure", (req: Request, res: Response) => {
+    const { text } = req.body;
+    
+    if (!text) {
+      res.status(400).json({ success: false, error: "Missing text" });
+      return;
+    }
+    
+    const metrics = communicationRefinementEngine.measureAll(text);
+    res.json({ success: true, metrics });
+  });
+
+  app.get("/api/communication/patterns", (_req: Request, res: Response) => {
+    const patterns = communicationRefinementEngine.getPatterns();
+    const top = communicationRefinementEngine.getTopPatterns(5);
+    res.json({ total: patterns.length, top, patterns });
+  });
+
+  app.get("/api/communication/sessions", (_req: Request, res: Response) => {
+    const sessions = communicationRefinementEngine.getRecentSessions(20);
+    res.json({ total: sessions.length, sessions });
+  });
+
+  app.get("/api/communication/variants", (_req: Request, res: Response) => {
+    const variants = communicationRefinementEngine.getSuccessfulVariants(20);
+    res.json({ total: variants.length, variants });
+  });
+
+  app.post("/api/communication/feedback", async (_req: Request, res: Response) => {
+    try {
+      const incorporated = await communicationRefinementEngine.incorporateFeedback();
+      res.json({ success: true, incorporated });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/communication/audience", (req: Request, res: Response) => {
+    const { mode } = req.body;
+    
+    if (!['technical', 'general', 'mixed'].includes(mode)) {
+      res.status(400).json({ success: false, error: "Invalid mode" });
+      return;
+    }
+    
+    communicationRefinementEngine.setAudienceMode(mode);
+    res.json({ success: true, mode });
+  });
+
+  app.post("/api/communication/baseline", (_req: Request, res: Response) => {
+    communicationRefinementEngine.captureBaseline();
+    res.json({ success: true, message: "Baseline captured" });
+  });
+
+  app.post("/api/communication/toggle", (req: Request, res: Response) => {
+    const { enabled } = req.body;
+    
+    if (enabled) {
+      communicationRefinementEngine.enable();
+    } else {
+      communicationRefinementEngine.disable();
+    }
+    
+    res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
   });
 
   // ==================== MEASUREMENT ENGINE ====================
