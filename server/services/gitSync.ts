@@ -61,7 +61,7 @@ export class GitSyncService {
       // Push to GitHub
       const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN || process.env.GITHUB_TOKEN;
       const pushUrl = `https://trancuong198:${token}@github.com/trancuong198/cipherh-1.git`;
-      await execAsync(`git push ${pushUrl} main`, {
+      await execAsync(`git push ${pushUrl} main --force`, {
         cwd: process.cwd(),
       });
       console.log("Changes pushed to GitHub");
