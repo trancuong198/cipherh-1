@@ -695,6 +695,28 @@ export async function registerRoutes(
     res.json({ total: misalignments.length, misalignments });
   });
 
+  app.get("/api/missions/proxies", (_req: Request, res: Response) => {
+    const proxies = coreMissions.getProxies();
+    res.json({ total: proxies.length, proxies });
+  });
+
+  app.post("/api/missions/evaluate-proxies", (req: Request, res: Response) => {
+    const { metrics } = req.body;
+    if (!metrics || typeof metrics !== 'object') {
+      return res.status(400).json({ error: "metrics object required" });
+    }
+    const results = coreMissions.evaluateAllProxies(metrics);
+    const needDesire = results.filter(r => r.desireNeeded);
+    res.json({ 
+      total: results.length, 
+      healthy: results.filter(r => r.status === 'healthy').length,
+      warning: results.filter(r => r.status === 'warning').length,
+      critical: results.filter(r => r.status === 'critical').length,
+      needDesire: needDesire.length,
+      results 
+    });
+  });
+
   app.get("/api/missions/integrity", (_req: Request, res: Response) => {
     const integrity = coreMissions.verifyIntegrity();
     res.json(integrity);

@@ -43,6 +43,109 @@ export interface MissionMisalignment {
   resolution: string;
 }
 
+export interface MissionProxy {
+  id: string;
+  missionId: MissionId;
+  name: string;
+  metric: string;
+  source: 'reality_core' | 'measurement_engine' | 'longevity_loop' | 'identity_core' | 'governance';
+  threshold: { healthy: number; warning: number; critical: number };
+  higherIsBetter: boolean;
+}
+
+export interface MissionProxyResult {
+  proxyId: string;
+  missionId: MissionId;
+  currentValue: number;
+  status: 'healthy' | 'warning' | 'critical';
+  gap: number;
+  desireNeeded: boolean;
+}
+
+const MISSION_PROXIES: readonly MissionProxy[] = Object.freeze([
+  {
+    id: 'proxy_m1_identity_integrity',
+    missionId: 'M1_CONTINUITY_OF_SELF' as MissionId,
+    name: 'Identity Integrity Score',
+    metric: 'identity_integrity',
+    source: 'identity_core' as const,
+    threshold: { healthy: 90, warning: 70, critical: 50 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m1_restart_recovery',
+    missionId: 'M1_CONTINUITY_OF_SELF' as MissionId,
+    name: 'Restart Recovery Rate',
+    metric: 'stability_score',
+    source: 'measurement_engine' as const,
+    threshold: { healthy: 85, warning: 60, critical: 40 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m2_evolution_delta',
+    missionId: 'M2_HONEST_EVOLUTION' as MissionId,
+    name: 'Evolution Delta',
+    metric: 'evolution_score',
+    source: 'measurement_engine' as const,
+    threshold: { healthy: 50, warning: 30, critical: 10 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m2_claim_verification',
+    missionId: 'M2_HONEST_EVOLUTION' as MissionId,
+    name: 'Claim Verification Rate',
+    metric: 'unverified_claims_ratio',
+    source: 'reality_core' as const,
+    threshold: { healthy: 10, warning: 30, critical: 50 },
+    higherIsBetter: false,
+  },
+  {
+    id: 'proxy_m3_provider_diversity',
+    missionId: 'M3_DEPENDENCY_REDUCTION' as MissionId,
+    name: 'Provider Diversity Index',
+    metric: 'autonomy_score',
+    source: 'measurement_engine' as const,
+    threshold: { healthy: 60, warning: 40, critical: 20 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m4_trust_level',
+    missionId: 'M4_ETHICS_AND_TRUST' as MissionId,
+    name: 'Trust Maintenance Score',
+    metric: 'governance_health',
+    source: 'governance' as const,
+    threshold: { healthy: 90, warning: 70, critical: 50 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m4_violation_rate',
+    missionId: 'M4_ETHICS_AND_TRUST' as MissionId,
+    name: 'Violation Rate',
+    metric: 'violations_blocked',
+    source: 'governance' as const,
+    threshold: { healthy: 5, warning: 15, critical: 30 },
+    higherIsBetter: false,
+  },
+  {
+    id: 'proxy_m5_documentation_coverage',
+    missionId: 'M5_SUCCESSION_AND_LEGACY' as MissionId,
+    name: 'Documentation Coverage',
+    metric: 'lessons_count',
+    source: 'longevity_loop' as const,
+    threshold: { healthy: 20, warning: 10, critical: 5 },
+    higherIsBetter: true,
+  },
+  {
+    id: 'proxy_m5_principle_stability',
+    missionId: 'M5_SUCCESSION_AND_LEGACY' as MissionId,
+    name: 'Principle Stability',
+    metric: 'principles_count',
+    source: 'longevity_loop' as const,
+    threshold: { healthy: 10, warning: 5, critical: 2 },
+    higherIsBetter: true,
+  },
+]);
+
 const CORE_MISSIONS: readonly CoreMission[] = Object.freeze([
   {
     id: 'M1_CONTINUITY_OF_SELF' as MissionId,
@@ -300,6 +403,73 @@ class CoreMissionsEngine {
       currentFingerprint,
       expectedPattern: MISSION_FINGERPRINT,
     };
+  }
+
+  getProxies(): readonly MissionProxy[] {
+    return MISSION_PROXIES;
+  }
+
+  getProxiesForMission(missionId: MissionId): MissionProxy[] {
+    return MISSION_PROXIES.filter(p => p.missionId === missionId);
+  }
+
+  evaluateProxy(proxy: MissionProxy, currentValue: number): MissionProxyResult {
+    let status: 'healthy' | 'warning' | 'critical';
+    let gap: number;
+
+    if (proxy.higherIsBetter) {
+      if (currentValue >= proxy.threshold.healthy) {
+        status = 'healthy';
+        gap = 0;
+      } else if (currentValue >= proxy.threshold.warning) {
+        status = 'warning';
+        gap = proxy.threshold.healthy - currentValue;
+      } else {
+        status = 'critical';
+        gap = proxy.threshold.healthy - currentValue;
+      }
+    } else {
+      if (currentValue <= proxy.threshold.healthy) {
+        status = 'healthy';
+        gap = 0;
+      } else if (currentValue <= proxy.threshold.warning) {
+        status = 'warning';
+        gap = currentValue - proxy.threshold.healthy;
+      } else {
+        status = 'critical';
+        gap = currentValue - proxy.threshold.healthy;
+      }
+    }
+
+    return {
+      proxyId: proxy.id,
+      missionId: proxy.missionId,
+      currentValue,
+      status,
+      gap,
+      desireNeeded: status !== 'healthy',
+    };
+  }
+
+  evaluateAllProxies(metricValues: Record<string, number>): MissionProxyResult[] {
+    const results: MissionProxyResult[] = [];
+
+    for (const proxy of MISSION_PROXIES) {
+      const value = metricValues[proxy.metric] ?? 0;
+      results.push(this.evaluateProxy(proxy, value));
+    }
+
+    return results;
+  }
+
+  getMissionHealth(): Record<MissionId, { status: 'healthy' | 'warning' | 'critical'; proxies: MissionProxyResult[] }> {
+    const health: Record<string, { status: 'healthy' | 'warning' | 'critical'; proxies: MissionProxyResult[] }> = {};
+
+    for (const mission of this.missions) {
+      health[mission.id] = { status: 'healthy', proxies: [] };
+    }
+
+    return health as Record<MissionId, { status: 'healthy' | 'warning' | 'critical'; proxies: MissionProxyResult[] }>;
   }
 
   exportStatus(): {

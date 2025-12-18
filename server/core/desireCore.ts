@@ -4,6 +4,7 @@ import { coreMissions } from './coreMissions';
 type MissionId = string;
 import { realityCore } from './realityCore';
 import { longevityLoop } from './longevityLoop';
+import { measurementEngine } from './measurementEngine';
 
 export type DesireType = 'improve' | 'stabilize' | 'reduce' | 'explore';
 export type UrgencyLevel = 'low' | 'medium' | 'high';
@@ -144,7 +145,41 @@ class DesireCoreEngine {
       });
     }
 
+    const metrics = this.collectCurrentMetrics();
+    const proxyResults = coreMissions.evaluateAllProxies(metrics);
+
+    for (const result of proxyResults) {
+      if (result.desireNeeded) {
+        const proxy = coreMissions.getProxies().find(p => p.id === result.proxyId);
+        const urgency: UrgencyLevel = result.status === 'critical' ? 'high' : 'medium';
+        
+        gaps.push({
+          missionId: result.missionId,
+          urgency,
+          description: `${proxy?.name || result.proxyId}: ${result.status} (current=${result.currentValue}, gap=${result.gap})`,
+        });
+      }
+    }
+
     return gaps;
+  }
+
+  private collectCurrentMetrics(): Record<string, number> {
+    const measurements = measurementEngine.runAllMeasurements();
+    const longevityState = longevityLoop.getState();
+    const realityStatus = realityCore.exportStatus();
+    
+    return {
+      identity_integrity: measurements.stability.currentScore,
+      stability_score: measurements.stability.currentScore,
+      evolution_score: measurements.evolution.currentScore,
+      unverified_claims_ratio: realityStatus.unverifiedClaimsCount * 5,
+      autonomy_score: measurements.autonomy.currentScore,
+      governance_health: Math.max(0, 100 - realityStatus.consecutiveMismatches * 10),
+      violations_blocked: realityStatus.unverifiedClaimsCount,
+      lessons_count: longevityState.lessons?.length || 0,
+      principles_count: longevityState.principles?.length || 0,
+    };
   }
 
   private detectRealityDecline(): { urgency: UrgencyLevel; description: string } | null {
