@@ -13,6 +13,7 @@ import { identityCore, IdentityDriftWarning } from "./identityCore";
 import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationEngine";
 import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
 import { metaEvolutionEngine } from "./metaEvolutionEngine";
+import { measurementEngine, DailyScorecard } from "./measurementEngine";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -42,6 +43,11 @@ export interface InnerLoopResult {
     checksPerformed: number;
     violationsBlocked: number;
     conservativeMode: boolean;
+  };
+  measurement?: {
+    overallScore: number;
+    domainScores: Record<string, number>;
+    trend: string;
   };
   error?: string;
 }
@@ -425,6 +431,33 @@ export class InnerLoop {
         console.log("Step 10: Meta-Evolution not due yet");
       }
 
+      // ===== STEP 10.5: Measurement & Benchmarking =====
+      console.log("Step 10.5: Running measurements...");
+      let measurementResult: DailyScorecard | null = null;
+      try {
+        measurementResult = measurementEngine.generateDailyScorecard();
+        console.log(`MEASUREMENT: Score ${measurementResult.overallScore}/100`);
+        
+        if (measurementResult.concerns.length > 0) {
+          console.log(`CONCERNS: ${measurementResult.concerns.join(', ')}`);
+        }
+        
+        // Write to Notion periodically (every 10 cycles)
+        if (cycle % 10 === 0) {
+          await measurementEngine.writeToNotion();
+        }
+        
+        // Check regressions monthly (every 144 cycles = ~24 hours at 10min intervals)
+        if (cycle % 144 === 0) {
+          const regressionAlert = measurementEngine.checkMonthlyRegressions();
+          if (regressionAlert && regressionAlert.actionRequired) {
+            console.warn(`REGRESSION_ALERT: ${regressionAlert.regressions.length} domains need attention`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error in Measurement: ${error}`);
+      }
+
       // ===== STEP 11: Log completion =====
       const evolutionState = evolutionKernel.getState();
       console.log("=".repeat(60));
@@ -451,6 +484,11 @@ export class InnerLoop {
         },
         evolution: evolutionEntry,
         identityCheck: identityCheckResult,
+        measurement: measurementResult ? {
+          overallScore: measurementResult.overallScore,
+          domainScores: measurementResult.domainScores,
+          trend: measurementResult.highlights.length > measurementResult.concerns.length ? 'positive' : 'neutral',
+        } : undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

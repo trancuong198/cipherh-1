@@ -15,6 +15,7 @@ import { resourceEscalationEngine } from "./core/resourceEscalationEngine";
 import { governanceEngine } from "./core/governanceEngine";
 import { metaEvolutionEngine } from "./core/metaEvolutionEngine";
 import { providerRegistry } from "./providers/providerRegistry";
+import { measurementEngine } from "./core/measurementEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -350,6 +351,90 @@ export async function registerRoutes(
       success,
       message: success ? "Reverted to fallback" : "Revert failed",
     });
+  });
+
+  // ==================== MEASUREMENT ENGINE ====================
+  app.get("/api/measurement", (_req: Request, res: Response) => {
+    const status = measurementEngine.exportStatus();
+    const latestScorecard = measurementEngine.getLatestScorecard();
+    const latestReport = measurementEngine.getLatestWeeklyReport();
+    
+    res.json({
+      status,
+      latestScorecard,
+      latestReport,
+    });
+  });
+
+  app.get("/api/measurement/metrics", (_req: Request, res: Response) => {
+    const metrics = measurementEngine.runAllMeasurements();
+    res.json(metrics);
+  });
+
+  app.get("/api/measurement/scorecard", (_req: Request, res: Response) => {
+    const scorecard = measurementEngine.generateDailyScorecard();
+    res.json(scorecard);
+  });
+
+  app.get("/api/measurement/scorecards", (_req: Request, res: Response) => {
+    const scorecards = measurementEngine.getAllScorecards();
+    res.json({ total: scorecards.length, scorecards });
+  });
+
+  app.get("/api/measurement/weekly", (_req: Request, res: Response) => {
+    const report = measurementEngine.generateWeeklyReport();
+    res.json(report);
+  });
+
+  app.get("/api/measurement/reports", (_req: Request, res: Response) => {
+    const reports = measurementEngine.getAllReports();
+    res.json({ total: reports.length, reports });
+  });
+
+  app.get("/api/measurement/alerts", (_req: Request, res: Response) => {
+    const alerts = measurementEngine.getAllAlerts();
+    res.json({ total: alerts.length, alerts });
+  });
+
+  app.post("/api/measurement/regression-check", (_req: Request, res: Response) => {
+    const alert = measurementEngine.checkMonthlyRegressions();
+    res.json({
+      hasRegressions: alert !== null,
+      alert,
+    });
+  });
+
+  app.post("/api/measurement/benchmark", async (req: Request, res: Response) => {
+    const { testSuite } = req.body;
+    try {
+      const result = await measurementEngine.runBenchmark(testSuite || 'core');
+      res.json({ success: true, result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.get("/api/measurement/benchmark/latest", (_req: Request, res: Response) => {
+    const benchmark = measurementEngine.getLatestBenchmark();
+    res.json({ hasBenchmark: benchmark !== null, benchmark });
+  });
+
+  app.post("/api/measurement/baseline", (_req: Request, res: Response) => {
+    measurementEngine.captureBaseline();
+    res.json({ 
+      success: true, 
+      message: "Baseline captured",
+      cycle: soulState.cycleCount,
+    });
+  });
+
+  app.post("/api/measurement/write-notion", async (_req: Request, res: Response) => {
+    try {
+      await measurementEngine.writeToNotion();
+      res.json({ success: true, message: "Written to Notion" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
   });
 
   // ==================== META-EVOLUTION ENGINE ====================
@@ -889,6 +974,12 @@ export async function registerRoutes(
         llm: providerRegistry.exportStatus().llm,
         memory: providerRegistry.exportStatus().memory,
         infra: providerRegistry.exportStatus().infra,
+      },
+      measurement: {
+        total_measurements: measurementEngine.exportStatus().totalMeasurements,
+        latest_score: measurementEngine.exportStatus().latestScore,
+        scorecards: measurementEngine.exportStatus().dailyScorecards,
+        alerts: measurementEngine.exportStatus().monthlyAlerts,
       },
       health: {
         status: stateExport.self_assessment.status,
