@@ -1,9 +1,32 @@
 import { logger } from './logger';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+const CHAT_FILE = path.join(process.cwd(), 'telegram_chat.json');
 
-let chatId: string | null = null;
+let registeredChats: Set<string> = new Set();
+
+function loadChats() {
+  try {
+    if (fs.existsSync(CHAT_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8'));
+      registeredChats = new Set(data.chats || []);
+      logger.info(`[Telegram] Loaded ${registeredChats.size} registered chats`);
+    }
+  } catch (error) {
+    logger.warn('[Telegram] Could not load chat file');
+  }
+}
+
+function saveChats() {
+  try {
+    fs.writeFileSync(CHAT_FILE, JSON.stringify({ chats: Array.from(registeredChats) }));
+  } catch (error) {
+    logger.warn('[Telegram] Could not save chat file');
+  }
+}
 
 export async function initTelegram(): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -12,12 +35,17 @@ export async function initTelegram(): Promise<boolean> {
   }
 
   try {
+    const deleteWebhook = await fetch(`${TELEGRAM_API_URL}/deleteWebhook`);
+    const webhookResult = await deleteWebhook.json();
+    logger.info(`[Telegram] Webhook cleared: ${webhookResult.ok}`);
+
     const response = await fetch(`${TELEGRAM_API_URL}/getMe`);
     const data = await response.json();
     
     if (data.ok) {
       logger.info(`[Telegram] Bot connected: @${data.result.username}`);
-      await startPolling();
+      loadChats();
+      startPolling();
       return true;
     } else {
       logger.error('[Telegram] Failed to connect:', data.description);
@@ -29,7 +57,7 @@ export async function initTelegram(): Promise<boolean> {
   }
 }
 
-async function startPolling() {
+function startPolling() {
   let offset = 0;
   
   const poll = async () => {
@@ -43,32 +71,51 @@ async function startPolling() {
           
           if (update.message?.text) {
             const userChatId = update.message.chat.id.toString();
-            const text = update.message.text;
+            const text = update.message.text.trim();
             
             if (text === '/start') {
-              chatId = userChatId;
-              await sendMessage(userChatId, `CipherH Soul Loop connected!\n\nYou will receive notifications about:\n- Soul Loop cycle completions\n- System status changes\n- Strategic insights\n\nCommands:\n/status - Get current status\n/run - Trigger Soul Loop cycle`);
+              registeredChats.add(userChatId);
+              saveChats();
+              await sendMessage(userChatId, 
+                `CipherH Soul Loop ket noi thanh cong!\n\n` +
+                `Ban se nhan thong bao ve:\n` +
+                `- Soul Loop cycle hoan thanh\n` +
+                `- Thay doi trang thai he thong\n` +
+                `- Chien luoc moi\n\n` +
+                `Lenh:\n` +
+                `/status - Xem trang thai hien tai\n` +
+                `/run - Chay Soul Loop cycle\n` +
+                `/stop - Dung nhan thong bao`
+              );
               logger.info(`[Telegram] Chat registered: ${userChatId}`);
             } else if (text === '/status') {
               await sendStatusUpdate(userChatId);
             } else if (text === '/run') {
-              await sendMessage(userChatId, 'Triggering Soul Loop cycle...');
+              await sendMessage(userChatId, 'Dang chay Soul Loop cycle...');
               try {
-                const response = await fetch('http://localhost:5000/api/core/run-loop', { method: 'POST' });
-                const result = await response.json();
-                await sendMessage(userChatId, `Soul Loop Result:\nCycle: ${result.state?.cycleCount || 'N/A'}\nScore: ${result.state?.selfScore?.toFixed(2) || 'N/A'}\nStatus: ${result.success ? 'Success' : 'Failed'}`);
+                const loopResponse = await fetch('http://localhost:5000/api/core/run-loop');
+                const result = await loopResponse.json();
+                await sendMessage(userChatId, 
+                  `Soul Loop Ket Qua:\n` +
+                  `Cycle: ${result.cycle || 'N/A'}\n` +
+                  `Thanh cong: ${result.success ? 'Co' : 'Khong'}`
+                );
               } catch (err) {
-                await sendMessage(userChatId, 'Failed to trigger Soul Loop');
+                await sendMessage(userChatId, 'Loi khi chay Soul Loop');
               }
+            } else if (text === '/stop') {
+              registeredChats.delete(userChatId);
+              saveChats();
+              await sendMessage(userChatId, 'Da dung nhan thong bao. Gui /start de bat lai.');
             }
           }
         }
       }
     } catch (error) {
-      logger.error('[Telegram] Polling error:', error);
+      logger.warn('[Telegram] Polling error - retrying...');
     }
     
-    setTimeout(poll, 1000);
+    setTimeout(poll, 2000);
   };
   
   poll();
@@ -79,11 +126,18 @@ async function sendStatusUpdate(targetChatId: string) {
     const response = await fetch('http://localhost:5000/api/core/status');
     const status = await response.json();
     
-    const message = `CipherH Status\n\nCycle: ${status.cycleCount || 0}\nScore: ${status.selfScore?.toFixed(2) || 'N/A'}\nState: ${status.currentState || 'idle'}\nLast Update: ${status.lastUpdate ? new Date(status.lastUpdate).toLocaleString() : 'Never'}`;
+    const message = 
+      `CipherH Status\n\n` +
+      `Cycle: ${status.inner_loop?.cycle_count || 0}\n` +
+      `Mode: ${status.inner_loop?.current_mode || 'idle'}\n` +
+      `Confidence: ${status.soul_state?.confidence || 0}%\n` +
+      `Energy: ${status.soul_state?.energy_level || 0}%\n` +
+      `OpenAI: ${status.services?.openai?.configured ? 'OK' : 'Off'}\n` +
+      `Notion: ${status.services?.notion?.connected ? 'OK' : 'Off'}`;
     
     await sendMessage(targetChatId, message);
   } catch (error) {
-    await sendMessage(targetChatId, 'Failed to get status');
+    await sendMessage(targetChatId, 'Loi khi lay trang thai');
   }
 }
 
@@ -96,8 +150,7 @@ export async function sendMessage(targetChatId: string, text: string): Promise<b
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: targetChatId,
-        text: text,
-        parse_mode: 'HTML'
+        text: text
       })
     });
     
@@ -109,25 +162,30 @@ export async function sendMessage(targetChatId: string, text: string): Promise<b
   }
 }
 
+export async function broadcastMessage(text: string) {
+  for (const chatId of registeredChats) {
+    await sendMessage(chatId, text);
+  }
+}
+
 export async function notifySoulLoopComplete(cycleCount: number, selfScore: number, insights: string[]) {
-  if (!chatId) return;
+  const message = 
+    `Soul Loop Cycle ${cycleCount} Hoan Thanh\n\n` +
+    `Diem: ${selfScore.toFixed(2)}\n\n` +
+    `Insights:\n${insights.slice(0, 3).map(i => `- ${i}`).join('\n')}`;
   
-  const message = `Soul Loop Cycle ${cycleCount} Complete\n\nScore: ${selfScore.toFixed(2)}\n\nInsights:\n${insights.slice(0, 3).map(i => `- ${i}`).join('\n')}`;
-  
-  await sendMessage(chatId, message);
+  await broadcastMessage(message);
 }
 
 export async function notifySystemEvent(event: string, details?: string) {
-  if (!chatId) return;
-  
-  const message = `CipherH Event: ${event}${details ? `\n\n${details}` : ''}`;
-  await sendMessage(chatId, message);
+  const message = `CipherH: ${event}${details ? `\n\n${details}` : ''}`;
+  await broadcastMessage(message);
 }
 
 export function getTelegramStatus() {
   return {
     connected: !!TELEGRAM_BOT_TOKEN,
-    chatRegistered: !!chatId,
-    chatId: chatId
+    chatRegistered: registeredChats.size > 0,
+    chatCount: registeredChats.size
   };
 }
