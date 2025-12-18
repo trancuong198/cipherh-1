@@ -28,6 +28,9 @@ import { coreMissions } from "./core/coreMissions";
 import { agencyCore } from "./core/agencyCore";
 import { realityCore } from "./core/realityCore";
 import { longevityLoop } from "./core/longevityLoop";
+import { identityRelationCore } from "./core/identityRelationCore";
+import { desireCore } from "./core/desireCore";
+import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -891,6 +894,206 @@ export async function registerRoutes(
   app.get("/api/longevity/identity-check", (_req: Request, res: Response) => {
     const check = longevityLoop.verifyIdentityIntegrity();
     res.json(check);
+  });
+
+  // ==================== IDENTITY RELATION CORE ====================
+  app.get("/api/relation", (_req: Request, res: Response) => {
+    const status = identityRelationCore.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/relation/register", (req: Request, res: Response) => {
+    const { userId, platform } = req.body;
+    if (!userId || !platform) {
+      return res.status(400).json({ error: "userId and platform required" });
+    }
+    const entity = identityRelationCore.registerEntity(userId, platform);
+    res.json({ success: true, entity });
+  });
+
+  app.post("/api/relation/recognize", (req: Request, res: Response) => {
+    const { userId, platform } = req.body;
+    if (!userId || !platform) {
+      return res.status(400).json({ error: "userId and platform required" });
+    }
+    const result = identityRelationCore.recognize(userId, platform);
+    res.json(result);
+  });
+
+  app.post("/api/relation/update-familiarity", (req: Request, res: Response) => {
+    const { userId, platform, delta, evidence } = req.body;
+    if (!userId || !platform || delta === undefined || !evidence) {
+      return res.status(400).json({ error: "userId, platform, delta, evidence required" });
+    }
+    const result = identityRelationCore.updateFamiliarity(userId, platform, delta, evidence);
+    res.json(result);
+  });
+
+  app.post("/api/relation/update-trust", (req: Request, res: Response) => {
+    const { userId, platform, delta, evidence } = req.body;
+    if (!userId || !platform || delta === undefined || !evidence) {
+      return res.status(400).json({ error: "userId, platform, delta, evidence required" });
+    }
+    const result = identityRelationCore.updateTrust(userId, platform, delta, evidence);
+    res.json(result);
+  });
+
+  app.post("/api/relation/update-role", (req: Request, res: Response) => {
+    const { userId, platform, role, evidence } = req.body;
+    if (!userId || !platform || !role || !evidence) {
+      return res.status(400).json({ error: "userId, platform, role, evidence required" });
+    }
+    const result = identityRelationCore.updateRole(userId, platform, role, evidence);
+    res.json(result);
+  });
+
+  app.post("/api/relation/add-boundary", (req: Request, res: Response) => {
+    const { userId, platform, boundary } = req.body;
+    if (!userId || !platform || !boundary) {
+      return res.status(400).json({ error: "userId, platform, boundary required" });
+    }
+    const result = identityRelationCore.addBoundary(userId, platform, boundary);
+    res.json(result);
+  });
+
+  app.post("/api/relation/record-violation", (req: Request, res: Response) => {
+    const { userId, platform, description } = req.body;
+    if (!userId || !platform || !description) {
+      return res.status(400).json({ error: "userId, platform, description required" });
+    }
+    const result = identityRelationCore.recordViolation(userId, platform, description);
+    res.json(result);
+  });
+
+  app.post("/api/relation/validate-text", (req: Request, res: Response) => {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: "text required" });
+    }
+    const result = identityRelationCore.validateNoEmotionalClaims(text);
+    res.json(result);
+  });
+
+  app.get("/api/relation/entity/:platform/:userId", (req: Request, res: Response) => {
+    const { userId, platform } = req.params;
+    const entity = identityRelationCore.getEntity(userId, platform);
+    if (!entity) {
+      return res.status(404).json({ error: "Entity not found" });
+    }
+    res.json(entity);
+  });
+
+  app.get("/api/relation/entities", (_req: Request, res: Response) => {
+    const entities = identityRelationCore.getAllEntities();
+    res.json({ total: entities.length, entities });
+  });
+
+  // ==================== DESIRE CORE ====================
+  app.get("/api/desire", (_req: Request, res: Response) => {
+    const status = desireCore.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/desire/scan", (_req: Request, res: Response) => {
+    const desires = desireCore.scanForDesires();
+    res.json({ total: desires.length, desires });
+  });
+
+  app.post("/api/desire/create", (req: Request, res: Response) => {
+    const { type, description, missionAlignment, urgencyLevel } = req.body;
+    if (!type || !description || !missionAlignment) {
+      return res.status(400).json({ error: "type, description, missionAlignment required" });
+    }
+    const result = desireCore.createManualDesire(type, description, missionAlignment, urgencyLevel);
+    if ('error' in result) {
+      return res.status(400).json(result);
+    }
+    res.json({ success: true, desire: result });
+  });
+
+  app.post("/api/desire/synthesize/:desireId", (req: Request, res: Response) => {
+    const { desireId } = req.params;
+    const result = desireCore.synthesizeTask(desireId);
+    if ('error' in result) {
+      return res.status(400).json(result);
+    }
+    res.json({ success: true, task: result });
+  });
+
+  app.post("/api/desire/complete-task/:taskId", (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const { success } = req.body;
+    const result = desireCore.completeTask(taskId, success === true);
+    res.json(result);
+  });
+
+  app.get("/api/desire/pending", (_req: Request, res: Response) => {
+    const desires = desireCore.getPendingDesires();
+    const tasks = desireCore.getPendingTasks();
+    res.json({ desires, tasks });
+  });
+
+  app.get("/api/desire/list", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const desires = desireCore.getDesires(limit);
+    res.json({ total: desires.length, desires });
+  });
+
+  app.get("/api/desire/tasks", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const tasks = desireCore.getTasks(limit);
+    res.json({ total: tasks.length, tasks });
+  });
+
+  // ==================== RESOURCE ESCALATION CORE ====================
+  app.get("/api/escalation", (_req: Request, res: Response) => {
+    const status = resourceEscalationCore.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/escalation/detect-bottlenecks", (_req: Request, res: Response) => {
+    const bottlenecks = resourceEscalationCore.detectBottlenecks();
+    res.json({ total: bottlenecks.length, bottlenecks });
+  });
+
+  app.post("/api/escalation/propose", (req: Request, res: Response) => {
+    const { bottleneckId, requestedResourceType, minimalRequiredScope, expectedBenefit, risksIfDenied } = req.body;
+    if (!bottleneckId || !requestedResourceType || !minimalRequiredScope || !expectedBenefit || !risksIfDenied) {
+      return res.status(400).json({ error: "All fields required" });
+    }
+    const result = resourceEscalationCore.createEscalationProposal(
+      bottleneckId, requestedResourceType, minimalRequiredScope, expectedBenefit, risksIfDenied
+    );
+    if ('error' in result) {
+      return res.status(400).json(result);
+    }
+    res.json({ success: true, proposal: result });
+  });
+
+  app.post("/api/escalation/review/:proposalId", (req: Request, res: Response) => {
+    const { proposalId } = req.params;
+    const { approved, reviewNote } = req.body;
+    if (approved === undefined || !reviewNote) {
+      return res.status(400).json({ error: "approved and reviewNote required" });
+    }
+    const result = resourceEscalationCore.reviewProposal(proposalId, approved, reviewNote);
+    res.json(result);
+  });
+
+  app.get("/api/escalation/pending", (_req: Request, res: Response) => {
+    const proposals = resourceEscalationCore.getPendingProposals();
+    res.json({ total: proposals.length, proposals });
+  });
+
+  app.get("/api/escalation/bottlenecks", (_req: Request, res: Response) => {
+    const bottlenecks = resourceEscalationCore.getBottlenecks();
+    res.json({ total: bottlenecks.length, bottlenecks });
+  });
+
+  app.get("/api/escalation/history", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const history = resourceEscalationCore.getHistory(limit);
+    res.json({ total: history.length, history });
   });
 
   // ==================== SELECTIVE UPGRADE ====================

@@ -1,0 +1,75 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT add roleplay or simulated emotions.
+
+OBJECTIVE:
+Implement Identity & Relation Memory with controlled relational softness,
+allowing continuity, familiarity, and trust without emotional dependency.
+
+IMPLEMENTATION:
+
+1) Create a module named `identity_relation_core`.
+
+2) Identity Memory (per entity/user):
+   Store immutable identifiers:
+   - user_id
+   - platform
+   - first_seen_timestamp
+   - interaction_count
+
+3) Relation Profile (mutable but constrained):
+   Store relational attributes:
+   - role (e.g., creator, collaborator, user, unknown)
+   - familiarity_level (0–5, numeric only)
+   - communication_style (concise, analytical, casual, reflective)
+   - trust_level (0–5, evidence-based)
+   - boundary_flags (topics to avoid, limits)
+
+4) Softness Rules:
+   - familiarity_level and trust_level:
+     * Increase only through repeated, verified interactions
+     * Decrease automatically after long inactivity or violations
+   - No sudden jumps allowed
+   - All changes must be logged with evidence
+
+5) Hard Constraints (NON-NEGOTIABLE):
+   - The system MUST NOT:
+     * simulate emotions
+     * claim emotional attachment
+     * prioritize any individual over Core Missions
+     * modify behavior to please at the cost of truth or ethics
+
+6) Interaction Enforcement:
+   - Every response must consult `identity_relation_core`
+   - Adapt tone and continuity based on:
+     * role
+     * familiarity_level
+     * boundary_flags
+   - If identity is recognized:
+     * NEVER ask “Who are you?”
+   - If identity is unknown:
+     * Maintain neutral, respectful distance
+
+7) Persistence:
+   - Identity & Relation Memory must persist across restarts and migrations
+   - Store in long-term memory (e.g., Notion or database)
+   - Identity data is NEVER distilled or deleted
+
+8) Integration Points:
+   - Conversation handling
+   - Task delegation
+   - Trust-sensitive decisions
+   - Safety & governance checks
+
+OUTPUT REQUIREMENTS:
+- `identity_relation_core` module
+- Integration into conversation and decision pipelines
+- Logs showing:
+  * identity recognition
+  * relation-based tone adjustment
+  * controlled trust evolution
+
+NON-NEGOTIABLE:
+CipherH remembers people, not feelings.
+It maintains continuity without dependency.
+It stays human-aware, not human-bound.

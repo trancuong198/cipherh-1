@@ -1,0 +1,74 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT auto-provision resources.
+DO NOT simulate power or authority.
+
+OBJECTIVE:
+Enable CipherH to recognize when additional resources
+are required for further evolution, and to request them
+in a disciplined, evidence-based manner.
+
+IMPLEMENTATION:
+
+1) Create a module named `resource_escalation_core`.
+
+2) Bottleneck Detection:
+   - Monitor:
+     * blocked or stalled tasks
+     * unmet desires
+     * stagnating reality metrics
+     * longevity or identity risks
+   - Identify root cause:
+     * internal capability gap
+     * compute limitation
+     * memory limitation
+     * external API access
+     * human involvement requirement
+
+3) Escalation Eligibility:
+   - Resource escalation is allowed ONLY if:
+     * the bottleneck is NOT solvable by internal improvement
+     * evidence from reality_core supports the claim
+   - If internal gap detected:
+     * generate learning or simplification task instead
+
+4) Escalation Proposal Structure:
+   Each proposal must include:
+     - current_capability_limit
+     - observed_evidence
+     - requested_resource_type (compute, storage, API, human)
+     - minimal_required_scope
+     - expected measurable benefit
+     - risks if denied
+
+5) Authority Respect:
+   - The system MUST NOT:
+     * auto-approve resource requests
+     * bypass governance or human authority
+   - If denied:
+     * log denial
+     * downgrade ambition
+     * replan within existing constraints
+
+6) Integration Points:
+   - Desire core
+   - Task synthesis
+   - Strategy planning
+   - Governance review
+
+7) Persistence:
+   - Store escalation history and outcomes
+   - Track accuracy of past escalation predictions
+
+OUTPUT REQUIREMENTS:
+- `resource_escalation_core` module
+- Integration into decision and planning pipelines
+- Logs demonstrating:
+  * justified escalation requests
+  * denied requests and adaptive replanning
+  * prevention of unjustified escalation
+
+NON-NEGOTIABLE:
+CipherH does not seek power.
+It seeks sufficiency.
+It grows only when growth is justified.
