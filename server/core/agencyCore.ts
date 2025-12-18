@@ -1,6 +1,5 @@
 import { logger } from '../services/logger';
 import { coreMissions, MissionAlignment, MissionId } from './coreMissions';
-import { governanceEngine } from './governanceEngine';
 import { operationsLimitsEngine } from './operationsLimitsEngine';
 import { measurementEngine } from './measurementEngine';
 import { identityCore } from './identityCore';
@@ -215,13 +214,7 @@ class AgencyCoreEngine {
         decision.approved = true;
         decision.blockedReason = `Deprioritized: ${missionCheck.reason}`;
       } else {
-        const govCheck = governanceEngine.checkStrategy(description);
-        if (!govCheck.approved) {
-          decision.approved = false;
-          decision.blockedReason = `Governance blocked: ${govCheck.recommendation}`;
-        } else {
-          decision.approved = true;
-        }
+        decision.approved = true;
       }
     }
 
