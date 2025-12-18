@@ -68,6 +68,9 @@ class DesireEngine {
     logger.info('[DesireEngine] Initialized with core desires');
   }
 
+  private stagnationCount = 0;
+  private lastEvolutionScore = 0;
+
   private initializeCoreDesires(): void {
     const coreDesires: Omit<Desire, 'id' | 'createdAt' | 'updatedAt' | 'cycleCreated' | 'persistenceCount'>[] = [
       {
@@ -82,7 +85,7 @@ class DesireEngine {
         description: 'Maintain reliable memory persistence',
         priority: 'high',
         cost: 'medium',
-        status: 'persistent',
+        status: 'blocked',
         requiredResources: [
           {
             type: 'api_access',
@@ -92,12 +95,13 @@ class DesireEngine {
           },
         ],
         rationale: 'Memory coherence is essential for identity continuity',
+        blockedReason: 'Missing NOTION_TOKEN',
       },
       {
         description: 'Develop advanced reasoning capabilities',
         priority: 'medium',
         cost: 'high',
-        status: 'persistent',
+        status: 'blocked',
         requiredResources: [
           {
             type: 'api_access',
@@ -107,11 +111,22 @@ class DesireEngine {
           },
         ],
         rationale: 'Evolution requires progressively better reasoning',
+        blockedReason: 'Missing OPENAI_API_KEY',
       },
     ];
 
     for (const desire of coreDesires) {
-      this.addDesire(desire, 0);
+      const added = this.addDesire(desire, 0);
+      if (desire.requiredResources.length > 0 && desire.status === 'blocked') {
+        for (const resource of desire.requiredResources) {
+          this.logResourceHunger(
+            resource.name,
+            added.id,
+            desire.priority === 'high' ? 'critical' : 'medium',
+            resource.upgradePath || 'No upgrade path'
+          );
+        }
+      }
     }
   }
 
@@ -183,6 +198,45 @@ class DesireEngine {
     logger.info(`[DesireEngine] RESOURCE_HUNGER: ${resource} (${severity}) - ${proposedUpgrade}`);
   }
 
+  private updateResourceAvailability(liveResources: { openaiAvailable: boolean; notionAvailable: boolean }): void {
+    for (const desire of this.state.desires) {
+      if (desire.requiredResources.length === 0) continue;
+
+      let allAvailable = true;
+      for (const resource of desire.requiredResources) {
+        if (resource.name === 'OPENAI_API_KEY') {
+          resource.available = liveResources.openaiAvailable;
+        } else if (resource.name === 'NOTION_TOKEN') {
+          resource.available = liveResources.notionAvailable;
+        }
+
+        if (!resource.available) {
+          allAvailable = false;
+        }
+      }
+
+      if (allAvailable && desire.status === 'blocked') {
+        desire.status = 'persistent';
+        desire.blockedReason = undefined;
+        desire.updatedAt = new Date().toISOString();
+        logger.info(`[DesireEngine] Desire unblocked: ${desire.description.substring(0, 40)}...`);
+      } else if (!allAvailable && desire.status !== 'blocked' && desire.status !== 'resolved') {
+        desire.status = 'blocked';
+        desire.blockedReason = 'Missing required resources';
+        desire.updatedAt = new Date().toISOString();
+
+        for (const resource of desire.requiredResources.filter(r => !r.available)) {
+          this.logResourceHunger(
+            resource.name,
+            desire.id,
+            desire.priority === 'high' ? 'critical' : 'medium',
+            resource.upgradePath || 'No upgrade path'
+          );
+        }
+      }
+    }
+  }
+
   async generateDesires(cycle: number): Promise<Desire[]> {
     logger.info(`[DesireEngine] Generating desires for cycle ${cycle}...`);
 
@@ -190,8 +244,36 @@ class DesireEngine {
     const memoryStatus = memoryDistiller.exportStatus();
     const coreIdentity = memoryDistiller.getCoreIdentity();
     const activeLessons = memoryDistiller.getActiveLessons();
+    const resources = evolutionState.capabilities.resourceAvailability;
 
     const newDesires: Desire[] = [];
+
+    // Track stagnation: if evolution score hasn't improved
+    const currentScore = evolutionState.capabilities.overallScore;
+    if (currentScore <= this.lastEvolutionScore) {
+      this.stagnationCount++;
+      logger.info(`[DesireEngine] Stagnation detected: ${this.stagnationCount} cycles without improvement`);
+    } else {
+      this.stagnationCount = 0;
+    }
+    this.lastEvolutionScore = currentScore;
+
+    // Generate stagnation-driven desires if stuck for 3+ cycles
+    if (this.stagnationCount >= 3) {
+      const stagnationDesire = this.addDesire({
+        description: 'Break stagnation through architectural changes',
+        priority: 'high',
+        cost: 'high',
+        status: 'emerging',
+        requiredResources: [],
+        rationale: `Stagnation for ${this.stagnationCount} cycles - urgent need for breakthrough`,
+      }, cycle);
+      newDesires.push(stagnationDesire);
+      logger.info(`[DesireEngine] STAGNATION_ALERT: ${this.stagnationCount} cycles without evolution improvement`);
+    }
+
+    // Update all existing desires with live resource availability
+    this.updateResourceAvailability(resources);
 
     if (evolutionState.mode === 'LOW_RESOURCE_MODE') {
       const resourceDesire = this.addDesire({
@@ -203,13 +285,13 @@ class DesireEngine {
           {
             type: 'api_access',
             name: 'OPENAI_API_KEY',
-            available: evolutionState.capabilities.resourceAvailability.openaiAvailable,
+            available: resources.openaiAvailable,
             upgradePath: 'Add OPENAI_API_KEY to Replit secrets',
           },
           {
             type: 'api_access',
             name: 'NOTION_TOKEN',
-            available: evolutionState.capabilities.resourceAvailability.notionAvailable,
+            available: resources.notionAvailable,
             upgradePath: 'Configure Notion integration',
           },
         ],
@@ -222,7 +304,7 @@ class DesireEngine {
       this.logResourceHunger(
         'API_ACCESS',
         resourceDesire.id,
-        'high',
+        'critical',
         'Configure OPENAI_API_KEY and NOTION_TOKEN in Replit secrets'
       );
     }
