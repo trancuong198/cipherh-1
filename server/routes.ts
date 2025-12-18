@@ -33,6 +33,7 @@ import { desireCore } from "./core/desireCore";
 import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { observabilityCore } from "./core/observabilityCore";
 import { daemon } from "./core/daemon";
+import { questionGovernor } from "./core/questionGovernor";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1296,6 +1297,61 @@ export async function registerRoutes(
       lastSnapshot,
       snapshots 
     });
+  });
+
+  // ==================== QUESTION GOVERNOR ====================
+  app.get("/api/questions/status", (_req: Request, res: Response) => {
+    const status = questionGovernor.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/questions/history", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 30;
+    const status = req.query.status as string | undefined;
+    const trigger = req.query.trigger as string | undefined;
+    const questionType = req.query.questionType as string | undefined;
+    
+    const history = questionGovernor.getQuestionHistory({
+      limit,
+      status: status as any,
+      trigger: trigger as any,
+      questionType: questionType as any,
+    });
+    res.json({ total: history.length, history });
+  });
+
+  app.get("/api/questions/pending", (_req: Request, res: Response) => {
+    const pending = questionGovernor.getPendingQuestions();
+    res.json({ total: pending.length, questions: pending });
+  });
+
+  app.post("/api/questions/request", (req: Request, res: Response) => {
+    const { trigger, triggerEvidence, questionType, question, cost } = req.body;
+    if (!trigger || !questionType || !question || !cost) {
+      return res.status(400).json({ error: "trigger, questionType, question, and cost required" });
+    }
+    const result = questionGovernor.requestQuestion({
+      trigger,
+      triggerEvidence: triggerEvidence || [],
+      questionType,
+      question,
+      cost,
+    });
+    res.json({ result });
+  });
+
+  app.post("/api/questions/answer", (req: Request, res: Response) => {
+    const { questionId, answer, insightGained } = req.body;
+    if (!questionId || !answer) {
+      return res.status(400).json({ error: "questionId and answer required" });
+    }
+    const success = questionGovernor.answerQuestion(questionId, answer, insightGained);
+    res.json({ success });
+  });
+
+  app.post("/api/questions/generate", (_req: Request, res: Response) => {
+    const questions = questionGovernor.generateQuestionsFromTriggers();
+    res.json({ generated: questions.length, questions });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
