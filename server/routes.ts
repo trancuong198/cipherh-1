@@ -26,6 +26,7 @@ import { governedScaleEngine } from "./core/governedScaleEngine";
 import { successionEngine } from "./core/successionEngine";
 import { coreMissions } from "./core/coreMissions";
 import { agencyCore } from "./core/agencyCore";
+import { realityCore } from "./core/realityCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -758,6 +759,61 @@ export async function registerRoutes(
     const limit = parseInt(req.query.limit as string) || 20;
     const failures = agencyCore.getIntegrityFailures(limit);
     res.json({ total: failures.length, failures });
+  });
+
+  // ==================== REALITY CORE ====================
+  app.get("/api/reality", (_req: Request, res: Response) => {
+    const status = realityCore.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/reality/measure", (_req: Request, res: Response) => {
+    const delta = realityCore.runMeasurementCycle();
+    res.json(delta);
+  });
+
+  app.post("/api/reality/record-signal", (req: Request, res: Response) => {
+    const { source, value, verificationMethod, raw } = req.body;
+    if (!source || value === undefined || !verificationMethod) {
+      return res.status(400).json({ error: "source, value, and verificationMethod required" });
+    }
+    if (!realityCore.isSourceReal(source)) {
+      return res.status(400).json({ error: "Invalid source. Must be: executed_action, api_response, persisted_log, observable_outcome" });
+    }
+    const signal = realityCore.recordSignal(source, value, verificationMethod, raw);
+    res.json({ success: true, signal });
+  });
+
+  app.post("/api/reality/verify-claim", (req: Request, res: Response) => {
+    const { claim, source, timestamp, verificationMethod } = req.body;
+    if (!claim) {
+      return res.status(400).json({ error: "claim required" });
+    }
+    const verification = realityCore.verifyClaim(claim, source, timestamp, verificationMethod);
+    res.json(verification);
+  });
+
+  app.post("/api/reality/attempt-recovery", (_req: Request, res: Response) => {
+    const result = realityCore.attemptRecovery();
+    res.json(result);
+  });
+
+  app.get("/api/reality/deltas", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const deltas = realityCore.getRecentDeltas(limit);
+    res.json({ total: deltas.length, deltas });
+  });
+
+  app.get("/api/reality/unverified-claims", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const claims = realityCore.getUnverifiedClaims(limit);
+    res.json({ total: claims.length, claims });
+  });
+
+  app.get("/api/reality/authority-adjustments", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const adjustments = realityCore.getAuthorityAdjustments(limit);
+    res.json({ total: adjustments.length, adjustments });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
