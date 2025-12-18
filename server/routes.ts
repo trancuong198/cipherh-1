@@ -22,6 +22,8 @@ import { taskStrategySynthesisEngine } from "./core/taskStrategySynthesisEngine"
 import { operationsLimitsEngine } from "./core/operationsLimitsEngine";
 import { playbook30Days } from "./core/playbook30Days";
 import { selectiveUpgradeEngine } from "./core/selectiveUpgradeEngine";
+import { governedScaleEngine } from "./core/governedScaleEngine";
+import { successionEngine } from "./core/successionEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -525,6 +527,115 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
+  });
+
+  // ==================== GOVERNED SCALE ====================
+  app.get("/api/scale", (_req: Request, res: Response) => {
+    const status = governedScaleEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/scale/preconditions", (_req: Request, res: Response) => {
+    const preconditions = governedScaleEngine.checkPreconditions();
+    res.json(preconditions);
+  });
+
+  app.post("/api/scale/start", async (req: Request, res: Response) => {
+    const { dimension, targetValue, stepSize } = req.body;
+    if (!dimension || !targetValue) {
+      return res.status(400).json({ error: "dimension and targetValue required" });
+    }
+    const ramp = await governedScaleEngine.startScaleRamp(dimension, targetValue, stepSize);
+    if (ramp) {
+      res.json({ success: true, ramp });
+    } else {
+      res.json({ success: false, error: "Cannot start scale - preconditions not met or ramp active" });
+    }
+  });
+
+  app.post("/api/scale/step", async (_req: Request, res: Response) => {
+    const result = await governedScaleEngine.stepRamp();
+    res.json(result);
+  });
+
+  app.post("/api/scale/rollback", async (req: Request, res: Response) => {
+    const { reason } = req.body;
+    const rolled = await governedScaleEngine.rollback(reason || "Manual rollback");
+    res.json({ success: rolled });
+  });
+
+  app.post("/api/scale/record-improvement", (req: Request, res: Response) => {
+    const { improved } = req.body;
+    governedScaleEngine.recordImprovementCycle(improved === true);
+    res.json({ success: true });
+  });
+
+  app.get("/api/scale/reports", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const reports = governedScaleEngine.getRecentReports(limit);
+    res.json({ total: reports.length, reports });
+  });
+
+  // ==================== SUCCESSION & LONGEVITY ====================
+  app.get("/api/succession", (_req: Request, res: Response) => {
+    const status = successionEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/succession/roles", (_req: Request, res: Response) => {
+    const roles = successionEngine.getRoleHolders();
+    res.json({ total: roles.length, roles });
+  });
+
+  app.post("/api/succession/handover/initiate", (req: Request, res: Response) => {
+    const { role, fromHolder, toHolder, initiatedBy } = req.body;
+    if (!role || !fromHolder || !toHolder) {
+      return res.status(400).json({ error: "role, fromHolder, toHolder required" });
+    }
+    const handover = successionEngine.initiateHandover(
+      role, fromHolder, toHolder, initiatedBy || fromHolder
+    );
+    if (handover) {
+      res.json({ success: true, handover });
+    } else {
+      res.json({ success: false, error: "Handover initiation failed" });
+    }
+  });
+
+  app.post("/api/succession/handover/:id/verify", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { verifiedBy, proof } = req.body;
+    const success = successionEngine.verifyHandover(id, verifiedBy || "system", proof || "manual");
+    res.json({ success, message: success ? "Verified" : "Verification failed" });
+  });
+
+  app.post("/api/succession/handover/:id/complete", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { completedBy } = req.body;
+    const success = successionEngine.completeHandover(id, completedBy || "system");
+    res.json({ success, message: success ? "Completed" : "Completion failed" });
+  });
+
+  app.post("/api/succession/snapshot", (_req: Request, res: Response) => {
+    const assets = successionEngine.snapshotLongevityAssets();
+    res.json({ success: true, assetsCount: assets.length, assets: assets.map(a => ({ type: a.type, hash: a.hash })) });
+  });
+
+  app.post("/api/succession/cold-start", (_req: Request, res: Response) => {
+    const recovery = successionEngine.simulateColdStart();
+    res.json(recovery);
+  });
+
+  app.post("/api/succession/integrity-check", (req: Request, res: Response) => {
+    const type = req.body.type || 'manual';
+    const check = successionEngine.runIntegrityCheck(type);
+    res.json(check);
+  });
+
+  app.get("/api/succession/handovers", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const history = successionEngine.getHandoverHistory(limit);
+    res.json({ total: history.length, handovers: history });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
