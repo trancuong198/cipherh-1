@@ -274,14 +274,17 @@ class IdentityRelationEngine {
       return { success: false, error: `Jump too large: max ${MAX_JUMP}, requested ${Math.abs(delta)}` };
     }
 
-    const missionCheck = coreMissions.validateActionAlignment(
+    const missionCheck = coreMissions.checkAlignment(
+      'task',
       `Update trust for ${userId}`,
-      ['ETHICS_AND_TRUST'],
-      `Trust change evidence: ${evidence}`
+      {
+        missionIds: ['M4_ETHICS_AND_TRUST'],
+        rationale: `Trust change evidence: ${evidence}`,
+      }
     );
 
     if (!missionCheck.aligned) {
-      return { success: false, error: 'Trust change blocked by Core Missions' };
+      return { success: false, error: `Trust change blocked: ${missionCheck.reason}` };
     }
 
     const oldValue = entity.relation.trustLevel;

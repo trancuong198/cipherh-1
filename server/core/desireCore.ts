@@ -198,7 +198,7 @@ class DesireCoreEngine {
     }
 
     for (const missionId of desire.missionAlignment) {
-      const mission = coreMissions.getMission(missionId);
+      const mission = coreMissions.getMission(missionId as any);
       if (!mission) {
         return { valid: false, reason: `Invalid mission: ${missionId}` };
       }
@@ -240,16 +240,19 @@ class DesireCoreEngine {
       status: 'pending',
     };
 
-    const missionValidation = coreMissions.validateActionAlignment(
+    const missionValidation = coreMissions.checkAlignment(
+      'task',
       task.description,
-      task.missionAlignment,
-      `Synthesized from desire: ${desire.sourceSignal}`
+      {
+        missionIds: task.missionAlignment,
+        rationale: `Synthesized from desire: ${desire.sourceSignal}`,
+      }
     );
 
     if (!missionValidation.aligned) {
       desire.status = 'blocked';
-      desire.blockReason = 'Task synthesis blocked by Core Missions';
-      return { error: 'Task blocked by Core Missions' };
+      desire.blockReason = `Task synthesis blocked: ${missionValidation.reason}`;
+      return { error: `Task blocked by Core Missions: ${missionValidation.reason}` };
     }
 
     desire.status = 'converted';

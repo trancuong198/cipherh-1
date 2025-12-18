@@ -170,14 +170,17 @@ class ResourceEscalationEngine {
       createdAt: new Date().toISOString(),
     };
 
-    const missionCheck = coreMissions.validateActionAlignment(
+    const missionCheck = coreMissions.checkAlignment(
+      'resource_escalation',
       `Resource escalation: ${requestedResourceType}`,
-      ['M3_DEPENDENCY_REDUCTION'],
-      `Bottleneck: ${bottleneck.description}`
+      {
+        missionIds: ['M3_DEPENDENCY_REDUCTION'],
+        rationale: `Bottleneck: ${bottleneck.description}`,
+      }
     );
 
     if (!missionCheck.aligned) {
-      return { error: 'Escalation conflicts with DEPENDENCY_REDUCTION mission' };
+      return { error: `Escalation conflicts with DEPENDENCY_REDUCTION: ${missionCheck.reason}` };
     }
 
     this.state.proposals.push(proposal);
