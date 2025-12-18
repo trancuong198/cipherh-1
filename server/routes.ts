@@ -6,6 +6,7 @@ import { soulState } from "./core/soulState";
 import { logAnalyzer } from "./core/analyzer";
 import { strategist } from "./core/strategist";
 import { memoryBridge } from "./core/memory";
+import { evolutionKernel } from "./core/evolutionKernel";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -46,6 +47,7 @@ export async function registerRoutes(
   app.get("/api/core/status", (_req: Request, res: Response) => {
     const status = innerLoop.getStatus();
     const stateExport = soulState.exportState();
+    const evolution = evolutionKernel.exportStatus();
 
     res.json({
       inner_loop: status,
@@ -60,11 +62,24 @@ export async function registerRoutes(
         lessons_count: stateExport.lessons_learned.length,
         reflection: stateExport.reflection,
       },
+      evolution: evolution,
       self_assessment: stateExport.self_assessment,
       services: {
         openai: openAIService.getStatus(),
         notion: memoryBridge.getConnectionStatus(),
       },
+    });
+  });
+
+  // ==================== EVOLUTION KERNEL ====================
+  app.get("/api/core/evolution", async (_req: Request, res: Response) => {
+    const evolution = evolutionKernel.exportStatus();
+    const questions = await evolutionKernel.generateInternalQuestions();
+    
+    res.json({
+      ...evolution,
+      internalQuestions: questions,
+      isComplete: evolutionKernel.isComplete(),
     });
   });
 
@@ -298,6 +313,7 @@ export async function registerRoutes(
     const analysis = logAnalyzer.returnAnalysis();
     const tasks = strategist.getWeeklyTasks();
     const logStats = logger.getLogStats();
+    const evolution = evolutionKernel.exportStatus();
 
     res.json({
       overview: {
@@ -308,6 +324,12 @@ export async function registerRoutes(
         confidence: status.confidence,
         energy_level: status.energy_level,
         anomaly_score: analysis.anomaly_score,
+      },
+      evolution: {
+        version: evolution.version,
+        evolution_count: evolution.evolutionCount,
+        mode: evolution.mode,
+        capabilities_score: evolution.capabilities.overallScore,
       },
       health: {
         status: stateExport.self_assessment.status,

@@ -6,6 +6,7 @@ import { logAnalyzer, AnalysisResult } from "./analyzer";
 import { strategist, WeeklyTask } from "./strategist";
 import { memoryBridge } from "./memory";
 import { openAIService } from "../services/openai";
+import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -18,7 +19,10 @@ export interface InnerLoopResult {
     confidence: number;
     weekly_tasks: number;
     questions_generated: number;
+    evolution_version: string;
+    evolution_mode: string;
   };
+  evolution?: EvolutionLogEntry;
   error?: string;
 }
 
@@ -240,9 +244,32 @@ export class InnerLoop {
         console.error(`Error writing weekly tasks: ${error}`);
       }
 
-      // ===== STEP 9: Log completion =====
+      // ===== STEP 9: Evolution Kernel =====
+      console.log("Step 9: Running Evolution Kernel...");
+      let evolutionEntry: EvolutionLogEntry | undefined;
+      try {
+        const selfScore = stateExport.self_assessment.overall_score;
+        const insights = suggestedQuestions.slice(0, 3);
+        
+        evolutionEntry = await evolutionKernel.evolve({
+          cycleCount: cycle,
+          selfScore,
+          anomalyScore,
+          insights
+        });
+        
+        const evolutionState = evolutionKernel.getState();
+        console.log(`Evolution complete: ${evolutionState.version} (${evolutionState.mode})`);
+        console.log(`Improvements: ${evolutionEntry.improvements.join(', ')}`);
+      } catch (error) {
+        console.error(`Error in Evolution Kernel: ${error}`);
+      }
+
+      // ===== STEP 10: Log completion =====
+      const evolutionState = evolutionKernel.getState();
       console.log("=".repeat(60));
       console.log(`SOUL LOOP CYCLE ${cycle} - COMPLETED SUCCESSFULLY`);
+      console.log(`Evolution: ${evolutionState.version} | Mode: ${evolutionState.mode}`);
       console.log(`Next cycle in ${this.sleepMinutes} minutes`);
       console.log("=".repeat(60));
 
@@ -259,7 +286,10 @@ export class InnerLoop {
           confidence: soulState.confidence,
           weekly_tasks: weeklyTasks.length,
           questions_generated: suggestedQuestions.length,
+          evolution_version: evolutionState.version,
+          evolution_mode: evolutionState.mode,
         },
+        evolution: evolutionEntry,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
