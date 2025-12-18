@@ -14,6 +14,7 @@ import { continuityEngine } from "./core/continuityEngine";
 import { resourceEscalationEngine } from "./core/resourceEscalationEngine";
 import { governanceEngine } from "./core/governanceEngine";
 import { metaEvolutionEngine } from "./core/metaEvolutionEngine";
+import { providerRegistry } from "./providers/providerRegistry";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -256,6 +257,98 @@ export async function registerRoutes(
     res.json({
       success,
       message: success ? `Proposal ${status}` : "Proposal not found",
+    });
+  });
+
+  // ==================== PROVIDER ABSTRACTION ====================
+  app.get("/api/providers", (_req: Request, res: Response) => {
+    const status = providerRegistry.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/providers/:type", (req: Request, res: Response) => {
+    const type = req.params.type as 'llm' | 'memory' | 'infra';
+    if (!['llm', 'memory', 'infra'].includes(type)) {
+      res.status(400).json({ success: false, error: "Invalid provider type" });
+      return;
+    }
+    
+    const providers = providerRegistry.listProviders(type);
+    res.json({ type, providers });
+  });
+
+  app.get("/api/providers/health/all", async (_req: Request, res: Response) => {
+    try {
+      const health = await providerRegistry.checkAllHealth();
+      res.json({ success: true, health });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/providers/migrate/simulate", async (req: Request, res: Response) => {
+    const { providerType, fromProvider, toProvider } = req.body;
+    
+    if (!providerType || !fromProvider || !toProvider) {
+      res.status(400).json({ success: false, error: "Missing required fields" });
+      return;
+    }
+    
+    try {
+      const report = await providerRegistry.simulateMigration(providerType, fromProvider, toProvider);
+      res.json({ success: true, report });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/providers/migrate/execute", async (req: Request, res: Response) => {
+    const { reportId, approved } = req.body;
+    
+    if (!reportId) {
+      res.status(400).json({ success: false, error: "Missing reportId" });
+      return;
+    }
+    
+    if (!approved) {
+      res.status(400).json({ success: false, error: "Explicit approval required" });
+      return;
+    }
+    
+    const success = await providerRegistry.executeMigration(reportId, approved);
+    res.json({
+      success,
+      message: success ? "Migration executed" : "Migration failed",
+    });
+  });
+
+  app.get("/api/providers/migrate/reports", (_req: Request, res: Response) => {
+    const reports = providerRegistry.getMigrationReports();
+    res.json({
+      total: reports.length,
+      reports: reports.map(r => ({
+        id: r.id,
+        timestamp: r.timestamp,
+        from: r.fromProvider,
+        to: r.toProvider,
+        type: r.providerType,
+        recommendation: r.recommendation,
+        executed: !!r.executedAt,
+      })),
+    });
+  });
+
+  app.post("/api/providers/:type/revert", (req: Request, res: Response) => {
+    const type = req.params.type as 'llm' | 'memory' | 'infra';
+    if (!['llm', 'memory', 'infra'].includes(type)) {
+      res.status(400).json({ success: false, error: "Invalid provider type" });
+      return;
+    }
+    
+    const success = providerRegistry.revertMigration(type);
+    res.json({
+      success,
+      message: success ? "Reverted to fallback" : "Revert failed",
     });
   });
 
@@ -791,6 +884,11 @@ export async function registerRoutes(
         pending_adjustments: metaEvolutionEngine.exportStatus().pendingAdjustments,
         active_adjustments: metaEvolutionEngine.exportStatus().activeAdjustments,
         next_evaluation_in: metaEvolutionEngine.exportStatus().nextEvaluationIn,
+      },
+      providers: {
+        llm: providerRegistry.exportStatus().llm,
+        memory: providerRegistry.exportStatus().memory,
+        infra: providerRegistry.exportStatus().infra,
       },
       health: {
         status: stateExport.self_assessment.status,
