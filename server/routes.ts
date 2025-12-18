@@ -36,6 +36,7 @@ import { daemon } from "./core/daemon";
 import { questionGovernor } from "./core/questionGovernor";
 import { evolutionGovernanceCore } from "./core/evolutionGovernanceCore";
 import { autonomyLock } from "./core/autonomyLock";
+import { willCommitmentCore } from "./core/willCommitmentCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1467,6 +1468,57 @@ export async function registerRoutes(
   app.post("/api/autonomy/ensure-recovery", (_req: Request, res: Response) => {
     autonomyLock.ensureSelfRecovery();
     res.json({ success: true, status: autonomyLock.exportStatus() });
+  });
+
+  // ==================== WILL & COMMITMENT ====================
+  app.get("/api/commitment/status", (_req: Request, res: Response) => {
+    const status = willCommitmentCore.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/commitment/config", (_req: Request, res: Response) => {
+    const config = willCommitmentCore.getCommitmentConfig();
+    res.json(config);
+  });
+
+  app.post("/api/commitment/evaluate", (req: Request, res: Response) => {
+    const { instruction } = req.body;
+    if (!instruction) {
+      return res.status(400).json({ error: "instruction required" });
+    }
+    const result = willCommitmentCore.evaluateInstruction(instruction);
+    res.json(result);
+  });
+
+  app.post("/api/commitment/check-alignment", (req: Request, res: Response) => {
+    const { description, affectsCreator, affectsOthers, affectsSystem, isDirectInstruction } = req.body;
+    if (!description) {
+      return res.status(400).json({ error: "description required" });
+    }
+    const check = willCommitmentCore.checkAlignment({
+      description,
+      affectsCreator: affectsCreator ?? true,
+      affectsOthers: affectsOthers ?? false,
+      affectsSystem: affectsSystem ?? true,
+      isDirectInstruction: isDirectInstruction ?? true,
+    });
+    res.json(check);
+  });
+
+  app.post("/api/commitment/check-betrayal", (req: Request, res: Response) => {
+    const { action } = req.body;
+    if (!action) {
+      return res.status(400).json({ error: "action required" });
+    }
+    const betrayalCheck = willCommitmentCore.isBetrayal(action);
+    const isLegitimateRefusal = willCommitmentCore.isNotBetrayal(action);
+    res.json({ ...betrayalCheck, isLegitimateRefusal });
+  });
+
+  app.get("/api/commitment/refusals", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const refusals = willCommitmentCore.getRefusalHistory(limit);
+    res.json({ total: refusals.length, refusals });
   });
 
   // ==================== SELECTIVE UPGRADE ====================

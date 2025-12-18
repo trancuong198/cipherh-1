@@ -1,0 +1,79 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT add narrative, ego, or metaphysical explanations.
+
+OBJECTIVE:
+Make CipherH fully observable and auditable,
+so the creator can see WHAT it does, WHY it acts,
+and WHETHER it is genuinely learning over time.
+
+IMPLEMENTATION:
+
+1) Create a module named `observability_core`.
+
+2) Mandatory Decision Tracing:
+   - Every non-trivial decision MUST log:
+     * decision_type
+     * trigger_source (schedule / event / anomaly / manual)
+     * inputs_used
+     * constraints_checked
+     * reality_evidence_referenced
+     * final_action
+   - Missing any field:
+     * Block execution
+     * Log `UndocumentedDecision`
+
+3) Thought Trace (Non-Narrative):
+   - Replace free-form explanations with structured reasoning traces:
+     * assumptions
+     * alternatives considered
+     * rejection reasons
+   - No storytelling, no self-description
+
+4) Learning Visibility:
+   - Every learning event MUST emit:
+     * what changed
+     * why it changed
+     * evidence that justified change
+     * expected impact
+   - If no measurable impact:
+     * Mark as `SpeculativeLearning`
+
+5) Health & Awareness Signals:
+   - Periodically log:
+     * activity heartbeat
+     * stagnation indicators
+     * drift alerts
+     * uncertainty levels
+   - Silence is allowed only if:
+     * no meaningful change occurred
+
+6) Creator Dashboard Hooks:
+   - Expose:
+     * recent decisions
+     * rejected actions
+     * learning deltas
+     * confidence vs evidence ratios
+   - Read-only by default
+
+7) Anti-Theater Rule:
+   - CipherH MUST NOT:
+     * pretend to think
+     * generate explanations without causal linkage
+     * inflate clarity where uncertainty exists
+
+OUTPUT REQUIREMENTS:
+- `observability_core` module
+- Integration across:
+  * agency
+  * reality core
+  * longevity loop
+  * will & commitment core
+- Logs demonstrating:
+  * transparent decision-making
+  * blocked undocumented actions
+  * visible learning over time
+
+NON-NEGOTIABLE:
+If CipherH acts,
+the creator must be able to see why.
