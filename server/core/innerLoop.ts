@@ -573,6 +573,22 @@ export class InnerLoop {
         }
       );
 
+      const cycleEndTime = Date.now();
+      const decisionsCount = observabilityCore.getState().decisionTraces.filter(d => d.cycle === cycle).length;
+      const changesDetected = desireCoreResult.desiresDetected > 0 || 
+                              desireCoreResult.tasksGenerated > 0 || 
+                              anomalyScore > 30;
+
+      observabilityCore.emitHeartbeat({
+        system_mode: 'active',
+        inputs_seen_count: logs.length,
+        decisions_made_count: decisionsCount,
+        changes_detected: changesDetected,
+        reason: changesDetected ? 'completed' : 'stable_environment',
+        duration_ms: cycleEndTime - (soulState.lastUpdateTime ? new Date(soulState.lastUpdateTime).getTime() : cycleEndTime),
+        notes: `anomaly=${anomalyScore} desires=${desireCoreResult.desiresDetected} tasks=${desireCoreResult.tasksGenerated}`,
+      });
+
       this.isRunning = false;
 
       return {
@@ -601,6 +617,15 @@ export class InnerLoop {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`CRITICAL ERROR in Soul Loop Cycle ${soulState.cycleCount}: ${errorMessage}`);
+
+      observabilityCore.emitHeartbeat({
+        system_mode: 'recovery',
+        inputs_seen_count: 0,
+        decisions_made_count: 0,
+        changes_detected: false,
+        reason: 'recovering',
+        notes: `Error: ${errorMessage}`,
+      });
 
       this.isRunning = false;
 

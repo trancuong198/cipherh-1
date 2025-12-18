@@ -1186,6 +1186,29 @@ export async function registerRoutes(
     res.json({ total: timeline.length, timeline });
   });
 
+  app.get("/api/observability/heartbeat", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const system_mode = req.query.system_mode as string | undefined;
+    const reason = req.query.reason as string | undefined;
+    const fromCycle = req.query.fromCycle ? parseInt(req.query.fromCycle as string) : undefined;
+    const toCycle = req.query.toCycle ? parseInt(req.query.toCycle as string) : undefined;
+    
+    const heartbeats = observabilityCore.getCognitiveHeartbeats({
+      limit,
+      system_mode: system_mode as any,
+      reason: reason as any,
+      fromCycle,
+      toCycle,
+    });
+    const stats = observabilityCore.getHeartbeatStats();
+    
+    res.json({ 
+      total: heartbeats.length, 
+      stats,
+      heartbeats 
+    });
+  });
+
   app.get("/api/observability/diff", (req: Request, res: Response) => {
     const cycleA = parseInt(req.query.cycleA as string);
     const cycleB = parseInt(req.query.cycleB as string);

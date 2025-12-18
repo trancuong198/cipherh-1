@@ -58,12 +58,29 @@ export interface BehaviorSnapshot {
   metrics: Record<string, number>;
 }
 
+export type SystemMode = 'idle' | 'active' | 'recovery';
+export type HeartbeatReason = 'stable_environment' | 'blocked' | 'waiting' | 'recovering' | 'processing' | 'completed';
+
+export interface CognitiveHeartbeat {
+  id: string;
+  timestamp: string;
+  cycle_id: number;
+  system_mode: SystemMode;
+  inputs_seen_count: number;
+  decisions_made_count: number;
+  changes_detected: boolean;
+  reason: HeartbeatReason;
+  duration_ms?: number;
+  notes?: string;
+}
+
 interface ObservabilityState {
   enabled: boolean;
   decisionTraces: DecisionTrace[];
   reasoningSummaries: ReasoningSummary[];
   autonomyDeltas: AutonomyDelta[];
   behaviorSnapshots: BehaviorSnapshot[];
+  cognitiveHeartbeats: CognitiveHeartbeat[];
   currentCycle: number;
   lastObservation: string;
 }
@@ -72,6 +89,7 @@ const MAX_DECISION_TRACES = 200;
 const MAX_REASONING_SUMMARIES = 100;
 const MAX_AUTONOMY_DELTAS = 100;
 const MAX_BEHAVIOR_SNAPSHOTS = 50;
+const MAX_COGNITIVE_HEARTBEATS = 500;
 
 class ObservabilityCoreEngine {
   private state: ObservabilityState;
@@ -83,6 +101,7 @@ class ObservabilityCoreEngine {
       reasoningSummaries: [],
       autonomyDeltas: [],
       behaviorSnapshots: [],
+      cognitiveHeartbeats: [],
       currentCycle: 0,
       lastObservation: new Date().toISOString(),
     };
@@ -379,6 +398,106 @@ class ObservabilityCoreEngine {
         deltas: data.deltas,
         summary: `${data.decisions} decisions, ${data.deltas} behavioral changes`,
       }));
+  }
+
+  emitHeartbeat(params: {
+    system_mode: SystemMode;
+    inputs_seen_count: number;
+    decisions_made_count: number;
+    changes_detected: boolean;
+    reason: HeartbeatReason;
+    duration_ms?: number;
+    notes?: string;
+  }): CognitiveHeartbeat {
+    const now = new Date().toISOString();
+
+    const heartbeat: CognitiveHeartbeat = {
+      id: this.generateId('hb'),
+      timestamp: now,
+      cycle_id: this.state.currentCycle,
+      system_mode: params.system_mode,
+      inputs_seen_count: params.inputs_seen_count,
+      decisions_made_count: params.decisions_made_count,
+      changes_detected: params.changes_detected,
+      reason: params.reason,
+      duration_ms: params.duration_ms,
+      notes: params.notes,
+    };
+
+    this.state.cognitiveHeartbeats.push(heartbeat);
+
+    if (this.state.cognitiveHeartbeats.length > MAX_COGNITIVE_HEARTBEATS) {
+      this.state.cognitiveHeartbeats = this.state.cognitiveHeartbeats.slice(-MAX_COGNITIVE_HEARTBEATS);
+    }
+
+    logger.info(`[Heartbeat] Cycle ${heartbeat.cycle_id} | ${heartbeat.system_mode} | ${heartbeat.reason} | inputs=${heartbeat.inputs_seen_count} decisions=${heartbeat.decisions_made_count} changes=${heartbeat.changes_detected}`);
+
+    return heartbeat;
+  }
+
+  getCognitiveHeartbeats(params: {
+    limit?: number;
+    system_mode?: SystemMode;
+    reason?: HeartbeatReason;
+    fromCycle?: number;
+    toCycle?: number;
+  } = {}): CognitiveHeartbeat[] {
+    let results = [...this.state.cognitiveHeartbeats];
+
+    if (params.system_mode) {
+      results = results.filter(h => h.system_mode === params.system_mode);
+    }
+    if (params.reason) {
+      results = results.filter(h => h.reason === params.reason);
+    }
+    if (params.fromCycle !== undefined) {
+      results = results.filter(h => h.cycle_id >= params.fromCycle!);
+    }
+    if (params.toCycle !== undefined) {
+      results = results.filter(h => h.cycle_id <= params.toCycle!);
+    }
+
+    results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return results.slice(0, params.limit || 50);
+  }
+
+  getLatestHeartbeat(): CognitiveHeartbeat | null {
+    if (this.state.cognitiveHeartbeats.length === 0) return null;
+    return this.state.cognitiveHeartbeats[this.state.cognitiveHeartbeats.length - 1];
+  }
+
+  getHeartbeatStats(): {
+    total: number;
+    byMode: Record<SystemMode, number>;
+    byReason: Record<HeartbeatReason, number>;
+    averageDuration: number;
+    lastHeartbeat: CognitiveHeartbeat | null;
+  } {
+    const byMode: Record<SystemMode, number> = { idle: 0, active: 0, recovery: 0 };
+    const byReason: Record<HeartbeatReason, number> = { 
+      stable_environment: 0, blocked: 0, waiting: 0, recovering: 0, processing: 0, completed: 0 
+    };
+
+    let totalDuration = 0;
+    let durationCount = 0;
+
+    for (const hb of this.state.cognitiveHeartbeats) {
+      byMode[hb.system_mode]++;
+      byReason[hb.reason]++;
+      if (hb.duration_ms !== undefined) {
+        totalDuration += hb.duration_ms;
+        durationCount++;
+      }
+    }
+
+    return {
+      total: this.state.cognitiveHeartbeats.length,
+      byMode,
+      byReason,
+      averageDuration: durationCount > 0 ? Math.round(totalDuration / durationCount) : 0,
+      lastHeartbeat: this.getLatestHeartbeat(),
+    };
   }
 
   exportStatus(): {
