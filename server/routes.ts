@@ -21,6 +21,7 @@ import { communicationRefinementEngine } from "./core/communicationRefinementEng
 import { taskStrategySynthesisEngine } from "./core/taskStrategySynthesisEngine";
 import { operationsLimitsEngine } from "./core/operationsLimitsEngine";
 import { playbook30Days } from "./core/playbook30Days";
+import { selectiveUpgradeEngine } from "./core/selectiveUpgradeEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -524,6 +525,80 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
+  });
+
+  // ==================== SELECTIVE UPGRADE ====================
+  app.get("/api/upgrade", (_req: Request, res: Response) => {
+    const status = selectiveUpgradeEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/upgrade/propose", (req: Request, res: Response) => {
+    const { axis, name, hypothesis, scope, successMetrics } = req.body;
+    if (!axis || !name || !hypothesis) {
+      return res.status(400).json({ error: "axis, name, hypothesis required" });
+    }
+    const plan = selectiveUpgradeEngine.proposeUpgrade(
+      axis,
+      name,
+      hypothesis,
+      scope || [],
+      successMetrics || [{ metric: 'autonomy', targetDelta: 10 }]
+    );
+    if (plan) {
+      res.json({ success: true, plan });
+    } else {
+      res.json({ success: false, error: "Cannot propose - active upgrade exists" });
+    }
+  });
+
+  app.post("/api/upgrade/approve/:upgradeId", async (req: Request, res: Response) => {
+    const { upgradeId } = req.params;
+    const approved = await selectiveUpgradeEngine.approveUpgrade(upgradeId);
+    res.json({ success: approved, message: approved ? "Approved" : "Approval failed" });
+  });
+
+  app.post("/api/upgrade/dry-run", (_req: Request, res: Response) => {
+    const started = selectiveUpgradeEngine.startDryRun();
+    res.json({ success: started, message: started ? "Dry-run started" : "Cannot start dry-run" });
+  });
+
+  app.post("/api/upgrade/go-live", (_req: Request, res: Response) => {
+    const live = selectiveUpgradeEngine.goLive();
+    res.json({ success: live, message: live ? "Upgrade is live" : "Cannot go live" });
+  });
+
+  app.post("/api/upgrade/evaluate-roi", (_req: Request, res: Response) => {
+    const roiLog = selectiveUpgradeEngine.evaluateROI();
+    if (roiLog) {
+      res.json({ success: true, roiLog });
+    } else {
+      res.json({ success: false, error: "No active live upgrade" });
+    }
+  });
+
+  app.post("/api/upgrade/complete", (req: Request, res: Response) => {
+    const { lessons } = req.body;
+    const completed = selectiveUpgradeEngine.completeUpgrade(lessons || []);
+    res.json({ success: completed, message: completed ? "Completed" : "Cannot complete" });
+  });
+
+  app.post("/api/upgrade/rollback", (req: Request, res: Response) => {
+    const { reason } = req.body;
+    const rolledBack = selectiveUpgradeEngine.rollbackUpgrade(reason || "Manual rollback");
+    res.json({ success: rolledBack, message: rolledBack ? "Rolled back" : "Cannot rollback" });
+  });
+
+  app.get("/api/upgrade/roi-logs", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const logs = selectiveUpgradeEngine.getRecentROILogs(limit);
+    res.json({ total: logs.length, logs });
+  });
+
+  app.get("/api/upgrade/suggest-axis", (_req: Request, res: Response) => {
+    const suggested = selectiveUpgradeEngine.suggestNextAxis();
+    const balance = selectiveUpgradeEngine.getAxisBalance();
+    res.json({ suggestedAxis: suggested, axisBalance: balance });
   });
 
   // ==================== PLAYBOOK 30 DAYS ====================
