@@ -19,6 +19,7 @@ import { measurementEngine } from "./core/measurementEngine";
 import { socialFeedbackEngine } from "./core/socialFeedbackEngine";
 import { communicationRefinementEngine } from "./core/communicationRefinementEngine";
 import { taskStrategySynthesisEngine } from "./core/taskStrategySynthesisEngine";
+import { operationsLimitsEngine } from "./core/operationsLimitsEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -522,6 +523,72 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
+  });
+
+  // ==================== OPERATIONS & AUTONOMY LIMITS ====================
+  app.get("/api/operations", (_req: Request, res: Response) => {
+    const status = operationsLimitsEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/operations/check", (req: Request, res: Response) => {
+    const { actionType, description, metadata } = req.body;
+    if (!actionType) {
+      return res.status(400).json({ error: "actionType required" });
+    }
+    const result = operationsLimitsEngine.checkAction(actionType, description || "", metadata);
+    res.json(result);
+  });
+
+  app.get("/api/operations/zones", (_req: Request, res: Response) => {
+    res.json({
+      AUTONOMOUS_ALLOWED: operationsLimitsEngine.getAllowedActions(),
+      APPROVAL_REQUIRED: operationsLimitsEngine.getApprovalRequiredActions(),
+      FORBIDDEN: operationsLimitsEngine.getForbiddenActions(),
+    });
+  });
+
+  app.get("/api/operations/pending", (_req: Request, res: Response) => {
+    const pending = operationsLimitsEngine.getPendingApprovals();
+    res.json({ total: pending.length, requests: pending });
+  });
+
+  app.post("/api/operations/approve/:requestId", (req: Request, res: Response) => {
+    const { requestId } = req.params;
+    const { reviewedBy, notes } = req.body;
+    const success = operationsLimitsEngine.approveRequest(
+      requestId,
+      reviewedBy || "human_operator",
+      notes
+    );
+    res.json({ success, message: success ? "Request approved" : "Failed to approve" });
+  });
+
+  app.post("/api/operations/deny/:requestId", (req: Request, res: Response) => {
+    const { requestId } = req.params;
+    const { reviewedBy, notes } = req.body;
+    const success = operationsLimitsEngine.denyRequest(
+      requestId,
+      reviewedBy || "human_operator",
+      notes
+    );
+    res.json({ success, message: success ? "Request denied" : "Failed to deny" });
+  });
+
+  app.get("/api/operations/audit", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const entries = operationsLimitsEngine.getRecentAuditLog(limit);
+    res.json({ total: entries.length, entries });
+  });
+
+  app.get("/api/operations/audit/:zone", (req: Request, res: Response) => {
+    const { zone } = req.params;
+    const validZones = ['AUTONOMOUS_ALLOWED', 'APPROVAL_REQUIRED', 'FORBIDDEN'];
+    if (!validZones.includes(zone)) {
+      return res.status(400).json({ error: "Invalid zone" });
+    }
+    const entries = operationsLimitsEngine.getAuditByZone(zone as any);
+    res.json({ zone, total: entries.length, entries });
   });
 
   // ==================== TASK & STRATEGY SYNTHESIS ====================
