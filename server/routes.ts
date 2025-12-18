@@ -18,6 +18,7 @@ import { providerRegistry } from "./providers/providerRegistry";
 import { measurementEngine } from "./core/measurementEngine";
 import { socialFeedbackEngine } from "./core/socialFeedbackEngine";
 import { communicationRefinementEngine } from "./core/communicationRefinementEngine";
+import { taskStrategySynthesisEngine } from "./core/taskStrategySynthesisEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -521,6 +522,60 @@ export async function registerRoutes(
     }
     
     res.json({ success: true, enabled: communicationRefinementEngine.exportStatus().enabled });
+  });
+
+  // ==================== TASK & STRATEGY SYNTHESIS ====================
+  app.get("/api/synthesis", (_req: Request, res: Response) => {
+    const status = taskStrategySynthesisEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/synthesis/run", async (_req: Request, res: Response) => {
+    try {
+      const result = await taskStrategySynthesisEngine.synthesize();
+      res.json({ success: true, result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.get("/api/synthesis/strategies", (_req: Request, res: Response) => {
+    const strategies = taskStrategySynthesisEngine.getActiveStrategiesList();
+    res.json({ total: strategies.length, strategies });
+  });
+
+  app.get("/api/synthesis/tasks", (_req: Request, res: Response) => {
+    const tasks = taskStrategySynthesisEngine.getActiveTasksList();
+    res.json({ total: tasks.length, tasks });
+  });
+
+  app.get("/api/synthesis/next-task", (_req: Request, res: Response) => {
+    const task = taskStrategySynthesisEngine.getNextTask();
+    res.json({ hasTask: task !== null, task });
+  });
+
+  app.get("/api/synthesis/mapping", (_req: Request, res: Response) => {
+    const mapping = taskStrategySynthesisEngine.getStrategyTaskMapping();
+    res.json({ total: mapping.length, mapping });
+  });
+
+  app.post("/api/synthesis/task/:taskId/start", (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const success = taskStrategySynthesisEngine.startTask(taskId);
+    res.json({ success, message: success ? "Task started" : "Failed to start task" });
+  });
+
+  app.post("/api/synthesis/task/:taskId/complete", (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const success = taskStrategySynthesisEngine.completeTask(taskId);
+    res.json({ success, message: success ? "Task completed" : "Failed to complete task" });
+  });
+
+  app.post("/api/synthesis/task/:taskId/abandon", (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const { reason } = req.body;
+    const success = taskStrategySynthesisEngine.abandonTask(taskId, reason || "No reason provided");
+    res.json({ success, message: success ? "Task abandoned" : "Failed to abandon task" });
   });
 
   // ==================== MEASUREMENT ENGINE ====================
