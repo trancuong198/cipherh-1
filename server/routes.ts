@@ -13,6 +13,7 @@ import { identityCore } from "./core/identityCore";
 import { continuityEngine } from "./core/continuityEngine";
 import { resourceEscalationEngine } from "./core/resourceEscalationEngine";
 import { governanceEngine } from "./core/governanceEngine";
+import { metaEvolutionEngine } from "./core/metaEvolutionEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -255,6 +256,94 @@ export async function registerRoutes(
     res.json({
       success,
       message: success ? `Proposal ${status}` : "Proposal not found",
+    });
+  });
+
+  // ==================== META-EVOLUTION ENGINE ====================
+  app.get("/api/core/meta-evolution", (_req: Request, res: Response) => {
+    const status = metaEvolutionEngine.exportStatus();
+    const latestReport = metaEvolutionEngine.getLatestReport();
+    
+    res.json({
+      status,
+      latestReport: latestReport ? {
+        id: latestReport.id,
+        timestamp: latestReport.timestamp,
+        trend: latestReport.overallHealthTrend,
+        moduleScores: latestReport.evaluations.map(e => ({ module: e.module, score: e.score })),
+      } : null,
+    });
+  });
+
+  app.get("/api/core/meta-evolution/reports", (_req: Request, res: Response) => {
+    const reports = metaEvolutionEngine.getAllReports();
+    res.json({
+      total: reports.length,
+      reports: reports.map(r => ({
+        id: r.id,
+        timestamp: r.timestamp,
+        cycleRange: r.cycleRange,
+        trend: r.overallHealthTrend,
+        proposedAdjustments: r.proposedAdjustments.length,
+      })),
+    });
+  });
+
+  app.get("/api/core/meta-evolution/reports/:id", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const reports = metaEvolutionEngine.getAllReports();
+    const report = reports.find(r => r.id === id);
+    
+    if (!report) {
+      res.status(404).json({ success: false, error: "Report not found" });
+      return;
+    }
+    
+    res.json({ success: true, report });
+  });
+
+  app.post("/api/core/meta-evolution/run", async (_req: Request, res: Response) => {
+    try {
+      const report = await metaEvolutionEngine.runMetaEvaluation();
+      res.json({
+        success: true,
+        report,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.get("/api/core/meta-evolution/adjustments", (_req: Request, res: Response) => {
+    const pending = metaEvolutionEngine.getPendingAdjustments();
+    const active = metaEvolutionEngine.getActiveAdjustments();
+    
+    res.json({
+      pending,
+      active,
+    });
+  });
+
+  app.post("/api/core/meta-evolution/adjustments/:id/activate", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const success = metaEvolutionEngine.activateAdjustment(id);
+    
+    res.json({
+      success,
+      message: success ? "Adjustment activated" : "Failed to activate (in cooldown or not found)",
+    });
+  });
+
+  app.post("/api/core/meta-evolution/adjustments/:id/revert", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const success = metaEvolutionEngine.revertAdjustment(id);
+    
+    res.json({
+      success,
+      message: success ? "Adjustment reverted" : "Adjustment not found or not active",
     });
   });
 
@@ -696,6 +785,12 @@ export async function registerRoutes(
         total_blocked: governanceEngine.exportStatus().totalBlocked,
         conservative_mode: governanceEngine.exportStatus().conservativeMode,
         recent_violations: governanceEngine.exportStatus().recentViolations,
+      },
+      meta_evolution: {
+        total_evaluations: metaEvolutionEngine.exportStatus().totalEvaluations,
+        pending_adjustments: metaEvolutionEngine.exportStatus().pendingAdjustments,
+        active_adjustments: metaEvolutionEngine.exportStatus().activeAdjustments,
+        next_evaluation_in: metaEvolutionEngine.exportStatus().nextEvaluationIn,
       },
       health: {
         status: stateExport.self_assessment.status,

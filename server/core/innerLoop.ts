@@ -12,6 +12,7 @@ import { desireEngine, Desire } from "./desireEngine";
 import { identityCore, IdentityDriftWarning } from "./identityCore";
 import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationEngine";
 import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
+import { metaEvolutionEngine } from "./metaEvolutionEngine";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -410,7 +411,21 @@ export class InnerLoop {
         console.error(`Error in Resource Escalation: ${error}`);
       }
 
-      // ===== STEP 10: Log completion =====
+      // ===== STEP 10: Meta-Evolution Check =====
+      metaEvolutionEngine.incrementCycleCount();
+      if (metaEvolutionEngine.shouldRunMetaEvaluation()) {
+        console.log("Step 10: Running Meta-Evolution evaluation...");
+        try {
+          const metaReport = await metaEvolutionEngine.runMetaEvaluation();
+          console.log(`META-EVOLUTION: ${metaReport.overallHealthTrend} trend, ${metaReport.proposedAdjustments.length} adjustments proposed`);
+        } catch (error) {
+          console.error(`Error in Meta-Evolution: ${error}`);
+        }
+      } else {
+        console.log("Step 10: Meta-Evolution not due yet");
+      }
+
+      // ===== STEP 11: Log completion =====
       const evolutionState = evolutionKernel.getState();
       console.log("=".repeat(60));
       console.log(`SOUL LOOP CYCLE ${cycle} - COMPLETED SUCCESSFULLY`);
