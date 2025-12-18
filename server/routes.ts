@@ -1281,6 +1281,23 @@ export async function registerRoutes(
     res.json({ success: true, message: `Cycle interval set to ${intervalMs}ms`, status: daemon.exportStatus() });
   });
 
+  app.get("/api/daemon/recovery", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const events = daemon.getRecoveryEvents(limit);
+    res.json({ total: events.length, events });
+  });
+
+  app.get("/api/observability/snapshot", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const snapshots = daemon.getSnapshots(limit);
+    const lastSnapshot = daemon.exportStatus().lastSnapshot;
+    res.json({ 
+      total: snapshots.length, 
+      lastSnapshot,
+      snapshots 
+    });
+  });
+
   // ==================== SELECTIVE UPGRADE ====================
   app.get("/api/upgrade", (_req: Request, res: Response) => {
     const status = selectiveUpgradeEngine.exportStatus();

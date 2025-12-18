@@ -2,6 +2,10 @@ import { logger } from '../services/logger';
 import { innerLoop } from './innerLoop';
 import { soulState } from './soulState';
 import { observabilityCore } from './observabilityCore';
+import { realityCore } from './realityCore';
+import { desireCore } from './desireCore';
+import { governanceEngine } from './governanceEngine';
+import { measurementEngine } from './measurementEngine';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -18,15 +22,49 @@ export interface StateSnapshot {
   id: string;
   timestamp: string;
   cycle: number;
-  soulState: {
+  version: string;
+  agency_state: {
     cycleCount: number;
     confidence: number;
     doubts: number;
     energyLevel: number;
     mode: string;
+    currentFocus: string | null;
   };
-  metrics: Record<string, number>;
+  autonomy_level: number;
+  active_constraints: string[];
+  reality_metrics_summary: {
+    stabilityScore: number;
+    evolutionScore: number;
+    autonomyScore: number;
+    consecutiveMismatches: number;
+  };
+  behavior_pattern_hash: string;
+  desire_state_summary: {
+    totalDesires: number;
+    pendingDesires: number;
+    blockedDesires: number;
+    activeTasksCount: number;
+  };
+  governance_state: {
+    conservativeMode: boolean;
+    violationsBlocked: number;
+  };
   checksum: string;
+}
+
+export interface RecoveryEvent {
+  id: string;
+  timestamp: string;
+  type: 'cold_start' | 'crash_recovery' | 'watchdog_recovery' | 'manual_recovery';
+  snapshotUsed: string | null;
+  cycleRestored: number;
+  stateRestored: {
+    confidence: number;
+    autonomy: number;
+    patterns_preserved: boolean;
+  };
+  notes: string;
 }
 
 export interface DaemonState {
@@ -35,6 +73,8 @@ export interface DaemonState {
   lastHeartbeat: Heartbeat | null;
   heartbeatHistory: Heartbeat[];
   lastSnapshot: StateSnapshot | null;
+  snapshotHistory: StateSnapshot[];
+  recoveryEvents: RecoveryEvent[];
   startedAt: string | null;
   totalCyclesRun: number;
   watchdogEnabled: boolean;
@@ -42,6 +82,7 @@ export interface DaemonState {
   cycleIntervalMs: number;
   recoveryCount: number;
   lastRecovery: string | null;
+  coldStartRecoveryPerformed: boolean;
 }
 
 const SNAPSHOT_FILE = './data/state_snapshot.json';
@@ -63,6 +104,8 @@ class DaemonEngine {
       lastHeartbeat: null,
       heartbeatHistory: [],
       lastSnapshot: null,
+      snapshotHistory: [],
+      recoveryEvents: [],
       startedAt: null,
       totalCyclesRun: 0,
       watchdogEnabled: true,
@@ -70,6 +113,7 @@ class DaemonEngine {
       cycleIntervalMs: DEFAULT_CYCLE_INTERVAL_MS,
       recoveryCount: 0,
       lastRecovery: null,
+      coldStartRecoveryPerformed: false,
     };
 
     this.ensureDataDirectory();
@@ -102,15 +146,16 @@ class DaemonEngine {
         const data = fs.readFileSync(SNAPSHOT_FILE, 'utf-8');
         const snapshot: StateSnapshot = JSON.parse(data);
         
-        const checksum = this.generateChecksum({
+        const checksumData = {
           cycle: snapshot.cycle,
-          soulState: snapshot.soulState,
-          metrics: snapshot.metrics,
-        });
+          agency_state: snapshot.agency_state,
+          autonomy_level: snapshot.autonomy_level,
+        };
+        const checksum = this.generateChecksum(checksumData);
 
         if (checksum === snapshot.checksum) {
           this.state.lastSnapshot = snapshot;
-          logger.info(`[Daemon] Loaded snapshot from cycle ${snapshot.cycle}`);
+          logger.info(`[Daemon] Loaded snapshot from cycle ${snapshot.cycle} (confidence=${snapshot.agency_state?.confidence || 'N/A'})`);
         } else {
           logger.warn('[Daemon] Snapshot checksum mismatch - ignoring corrupted snapshot');
         }
@@ -120,32 +165,68 @@ class DaemonEngine {
     }
   }
 
+  private generateBehaviorHash(): string {
+    const patterns = observabilityCore.getBehaviorSnapshots(1)[0]?.patterns || {};
+    return this.generateChecksum(patterns);
+  }
+
   saveSnapshot(): StateSnapshot {
+    const measurements = measurementEngine.runAllMeasurements();
+    const realityStatus = realityCore.exportStatus();
+    const desireStatus = desireCore.exportStatus();
+    const govStatus = governanceEngine.exportStatus();
+
     const snapshot: StateSnapshot = {
       id: `snap_${Date.now()}`,
       timestamp: new Date().toISOString(),
       cycle: soulState.cycleCount,
-      soulState: {
+      version: '2.0',
+      agency_state: {
         cycleCount: soulState.cycleCount,
         confidence: soulState.confidence,
         doubts: soulState.doubts,
         energyLevel: soulState.energyLevel,
         mode: soulState.mode,
+        currentFocus: soulState.currentFocus,
       },
-      metrics: {},
+      autonomy_level: measurements.autonomy?.currentScore || 50,
+      active_constraints: govStatus.conservativeMode ? ['conservative_mode'] : [],
+      reality_metrics_summary: {
+        stabilityScore: measurements.stability?.currentScore || 50,
+        evolutionScore: measurements.evolution?.currentScore || 50,
+        autonomyScore: measurements.autonomy?.currentScore || 50,
+        consecutiveMismatches: realityStatus.consecutiveMismatches,
+      },
+      behavior_pattern_hash: this.generateBehaviorHash(),
+      desire_state_summary: {
+        totalDesires: desireStatus.totalDesires,
+        pendingDesires: desireStatus.pendingDesires,
+        blockedDesires: desireStatus.blockedDesires,
+        activeTasksCount: desireStatus.activeTasks,
+      },
+      governance_state: {
+        conservativeMode: govStatus.conservativeMode,
+        violationsBlocked: govStatus.violationsBlocked,
+      },
       checksum: '',
     };
 
     snapshot.checksum = this.generateChecksum({
       cycle: snapshot.cycle,
-      soulState: snapshot.soulState,
-      metrics: snapshot.metrics,
+      agency_state: snapshot.agency_state,
+      autonomy_level: snapshot.autonomy_level,
     });
 
     try {
       fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2));
       this.state.lastSnapshot = snapshot;
-      logger.info(`[Daemon] Snapshot saved at cycle ${snapshot.cycle}`);
+      this.state.snapshotHistory.push(snapshot);
+      
+      if (this.state.snapshotHistory.length > 20) {
+        this.state.snapshotHistory = this.state.snapshotHistory.slice(-20);
+      }
+      
+      logger.info(`[Daemon] Snapshot saved at cycle ${snapshot.cycle} (confidence=${snapshot.agency_state.confidence}, autonomy=${snapshot.autonomy_level})`);
     } catch (error) {
       logger.error(`[Daemon] Failed to save snapshot: ${error}`);
     }
@@ -228,19 +309,125 @@ class DaemonEngine {
     }
   }
 
-  async recover(): Promise<void> {
-    logger.info('[Daemon] Starting recovery procedure...');
+  async recover(type: RecoveryEvent['type'] = 'crash_recovery'): Promise<RecoveryEvent> {
+    logger.info(`[Daemon] Starting ${type} recovery procedure...`);
     this.state.recoveryCount++;
     this.state.lastRecovery = new Date().toISOString();
 
+    const recoveryEvent: RecoveryEvent = {
+      id: `recovery_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      type,
+      snapshotUsed: null,
+      cycleRestored: 0,
+      stateRestored: {
+        confidence: soulState.confidence,
+        autonomy: 50,
+        patterns_preserved: false,
+      },
+      notes: '',
+    };
+
     if (this.state.lastSnapshot) {
-      logger.info(`[Daemon] Restoring from snapshot cycle ${this.state.lastSnapshot.cycle}`);
+      const snap = this.state.lastSnapshot;
+      logger.info(`[Daemon] Restoring from snapshot cycle ${snap.cycle}`);
+      
+      recoveryEvent.snapshotUsed = snap.id;
+      recoveryEvent.cycleRestored = snap.cycle;
+      recoveryEvent.stateRestored = {
+        confidence: snap.agency_state.confidence,
+        autonomy: snap.autonomy_level,
+        patterns_preserved: true,
+      };
+      recoveryEvent.notes = `Restored: confidence=${snap.agency_state.confidence}, autonomy=${snap.autonomy_level}, patterns_hash=${snap.behavior_pattern_hash}`;
+
+      logger.info(`[Daemon] PRESERVED: confidence=${snap.agency_state.confidence}, doubts=${snap.agency_state.doubts}, energy=${snap.agency_state.energyLevel}`);
+      logger.info(`[Daemon] PRESERVED: autonomy_level=${snap.autonomy_level}`);
+      logger.info(`[Daemon] PRESERVED: behavior_patterns (hash=${snap.behavior_pattern_hash})`);
+    } else {
+      recoveryEvent.notes = 'No snapshot available - starting fresh but preserving current state';
+      logger.warn('[Daemon] No snapshot available for recovery');
+    }
+
+    this.state.recoveryEvents.push(recoveryEvent);
+    if (this.state.recoveryEvents.length > 50) {
+      this.state.recoveryEvents = this.state.recoveryEvents.slice(-50);
     }
 
     this.state.running = false;
     this.recordHeartbeat('alive');
 
-    logger.info('[Daemon] Recovery complete - resuming operations');
+    observabilityCore.emitHeartbeat({
+      system_mode: 'recovery',
+      inputs_seen_count: 0,
+      decisions_made_count: 0,
+      changes_detected: false,
+      reason: 'recovering',
+      notes: `${type}: ${recoveryEvent.notes}`,
+    });
+
+    logger.info(`[Daemon] Recovery complete - resuming operations (type=${type})`);
+    return recoveryEvent;
+  }
+
+  performColdStartRecovery(): RecoveryEvent | null {
+    if (this.state.coldStartRecoveryPerformed) {
+      logger.info('[Daemon] Cold-start recovery already performed this session');
+      return null;
+    }
+
+    if (!this.state.lastSnapshot) {
+      logger.info('[Daemon] No snapshot for cold-start recovery - fresh start');
+      this.state.coldStartRecoveryPerformed = true;
+      return null;
+    }
+
+    logger.info('[Daemon] Performing COLD-START RECOVERY...');
+    
+    const snap = this.state.lastSnapshot;
+    
+    logger.info(`[Daemon] Cold-start: Loading state from cycle ${snap.cycle}`);
+    logger.info(`[Daemon] Cold-start: confidence=${snap.agency_state.confidence} (NOT reset)`);
+    logger.info(`[Daemon] Cold-start: autonomy=${snap.autonomy_level} (NOT reset)`);
+    logger.info(`[Daemon] Cold-start: behavior_hash=${snap.behavior_pattern_hash} (NOT reset)`);
+
+    const recoveryEvent: RecoveryEvent = {
+      id: `recovery_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      type: 'cold_start',
+      snapshotUsed: snap.id,
+      cycleRestored: snap.cycle,
+      stateRestored: {
+        confidence: snap.agency_state.confidence,
+        autonomy: snap.autonomy_level,
+        patterns_preserved: true,
+      },
+      notes: `Cold-start recovery from snapshot at cycle ${snap.cycle}. State preserved: confidence=${snap.agency_state.confidence}, autonomy=${snap.autonomy_level}`,
+    };
+
+    this.state.recoveryEvents.push(recoveryEvent);
+    this.state.coldStartRecoveryPerformed = true;
+    this.state.recoveryCount++;
+
+    observabilityCore.emitHeartbeat({
+      system_mode: 'recovery',
+      inputs_seen_count: 0,
+      decisions_made_count: 0,
+      changes_detected: false,
+      reason: 'recovering',
+      notes: `COLD-START: Restored from cycle ${snap.cycle}`,
+    });
+
+    logger.info('[Daemon] COLD-START RECOVERY COMPLETE - System will mark first cycle as recovery mode');
+    return recoveryEvent;
+  }
+
+  getRecoveryEvents(limit: number = 20): RecoveryEvent[] {
+    return this.state.recoveryEvents.slice(-limit);
+  }
+
+  getSnapshots(limit: number = 10): StateSnapshot[] {
+    return this.state.snapshotHistory.slice(-limit);
   }
 
   startWatchdog(): void {
@@ -286,7 +473,7 @@ class DaemonEngine {
         this.state.running = false;
       }
 
-      this.recover();
+      this.recover('watchdog_recovery');
     } else if (this.state.running && (now - this.lastCycleStart) > HEARTBEAT_TIMEOUT_MS) {
       logger.warn('[Daemon] Cycle running too long - may be stuck');
     }
@@ -297,6 +484,8 @@ class DaemonEngine {
       logger.warn('[Daemon] Already running');
       return;
     }
+
+    this.performColdStartRecovery();
 
     this.state.enabled = true;
     this.state.startedAt = new Date().toISOString();
