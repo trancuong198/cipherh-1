@@ -53,7 +53,7 @@ export class GitSyncService {
 
       // Create commit with timestamp
       const commitMessage = `Auto-sync: ${new Date().toISOString()}`;
-      await execAsync(`git commit -m "${commitMessage}"`, {
+      await execAsync(`git -c user.name="CipherH Agent" -c user.email="cipherh@agent.local" commit -m "${commitMessage}"`, {
         cwd: process.cwd(),
       });
       console.log("Changes committed");
