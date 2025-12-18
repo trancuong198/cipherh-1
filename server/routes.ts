@@ -10,6 +10,7 @@ import { evolutionKernel } from "./core/evolutionKernel";
 import { memoryDistiller } from "./core/memoryDistiller";
 import { desireEngine } from "./core/desireEngine";
 import { identityCore } from "./core/identityCore";
+import { continuityEngine } from "./core/continuityEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -23,6 +24,15 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Run continuity checks at startup before any inner loop execution
+  continuityEngine.runStartupChecks().then((report) => {
+    const status = continuityEngine.getStatus();
+    logger.info(`[Startup] Continuity check complete: ${status}`);
+    if (report.detected) {
+      logger.warn(`[Startup] Discontinuity detected: ${report.details.join(', ')}`);
+    }
+  });
+
   // Initialize Telegram bot
   initTelegram().then((connected) => {
     if (connected) {
@@ -188,6 +198,46 @@ export async function registerRoutes(
       success,
       message: success ? "Desire reprioritized" : "Desire not found",
     });
+  });
+
+  // ==================== CONTINUITY ENGINE ====================
+  app.get("/api/core/continuity", (_req: Request, res: Response) => {
+    const status = continuityEngine.exportStatus();
+    const record = continuityEngine.getCurrentRecord();
+    
+    res.json({
+      status,
+      currentRecord: record,
+    });
+  });
+
+  app.get("/api/core/continuity/rebirths", (_req: Request, res: Response) => {
+    const events = continuityEngine.getRebirthEvents();
+    const latest = continuityEngine.getLatestRebirthEvent();
+    
+    res.json({
+      total: events.length,
+      latest,
+      events,
+    });
+  });
+
+  app.post("/api/core/continuity/check", async (_req: Request, res: Response) => {
+    try {
+      const report = await continuityEngine.forceRecoveryCheck();
+      const status = continuityEngine.exportStatus();
+      
+      res.json({
+        success: true,
+        report,
+        status,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   // ==================== IDENTITY CORE ====================
@@ -522,6 +572,12 @@ export async function registerRoutes(
         checks_performed: identityCore.exportStatus().checksPerformed,
         recent_warnings: identityCore.exportStatus().recentWarnings,
         is_locked: identityCore.exportStatus().isLocked,
+      },
+      continuity: {
+        status: continuityEngine.exportStatus().status,
+        mode: continuityEngine.exportStatus().mode,
+        total_reboots: continuityEngine.exportStatus().totalReboots,
+        rebirth_count: continuityEngine.exportStatus().rebirthCount,
       },
       health: {
         status: stateExport.self_assessment.status,
