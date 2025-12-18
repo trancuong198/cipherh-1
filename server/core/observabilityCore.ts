@@ -1,5 +1,71 @@
 import { logger } from '../services/logger';
 
+export type TriggerSource = 'schedule' | 'event' | 'anomaly' | 'manual' | 'internal';
+export type LearningType = 'behavioral' | 'strategic' | 'corrective' | 'speculative';
+export type HealthAlertType = 'stagnation' | 'drift' | 'uncertainty' | 'overload' | 'memory_pressure';
+
+export interface MandatoryDecisionFields {
+  decision_type: string;
+  trigger_source: TriggerSource;
+  inputs_used: string[];
+  constraints_checked: string[];
+  reality_evidence_referenced: string[];
+  final_action: string;
+}
+
+export interface UndocumentedDecisionLog {
+  id: string;
+  timestamp: string;
+  cycle: number;
+  attempted_source: string;
+  missing_fields: string[];
+  blocked: boolean;
+}
+
+export interface LearningEvent {
+  id: string;
+  timestamp: string;
+  cycle: number;
+  learning_type: LearningType;
+  what_changed: string;
+  why_changed: string;
+  evidence_justified: string[];
+  expected_impact: string;
+  measurable_impact: boolean;
+  speculative: boolean;
+}
+
+export interface HealthSignal {
+  id: string;
+  timestamp: string;
+  cycle: number;
+  alert_type: HealthAlertType;
+  severity: 'low' | 'medium' | 'high';
+  description: string;
+  metrics: Record<string, number>;
+  recommended_action: string | null;
+}
+
+export interface StructuredReasoning {
+  id: string;
+  timestamp: string;
+  cycle: number;
+  assumptions: string[];
+  alternatives_considered: Array<{ option: string; rejection_reason: string }>;
+  causal_chain: string[];
+  no_narrative: true;
+}
+
+export interface DashboardData {
+  recent_decisions: DecisionTrace[];
+  rejected_actions: DecisionTrace[];
+  learning_deltas: LearningEvent[];
+  confidence_evidence_ratio: number;
+  health_alerts: HealthSignal[];
+  undocumented_blocks: number;
+  last_update: string;
+}
+
 export interface DecisionContext {
   cycle: number;
   timestamp: string;
@@ -81,8 +147,15 @@ interface ObservabilityState {
   autonomyDeltas: AutonomyDelta[];
   behaviorSnapshots: BehaviorSnapshot[];
   cognitiveHeartbeats: CognitiveHeartbeat[];
+  learningEvents: LearningEvent[];
+  healthSignals: HealthSignal[];
+  structuredReasonings: StructuredReasoning[];
+  undocumentedDecisions: UndocumentedDecisionLog[];
   currentCycle: number;
   lastObservation: string;
+  totalConfidenceScore: number;
+  totalEvidenceCount: number;
+  consecutiveIdleCycles: number;
 }
 
 const MAX_DECISION_TRACES = 200;
@@ -90,6 +163,11 @@ const MAX_REASONING_SUMMARIES = 100;
 const MAX_AUTONOMY_DELTAS = 100;
 const MAX_BEHAVIOR_SNAPSHOTS = 50;
 const MAX_COGNITIVE_HEARTBEATS = 500;
+const MAX_LEARNING_EVENTS = 200;
+const MAX_HEALTH_SIGNALS = 100;
+const MAX_STRUCTURED_REASONINGS = 100;
+const MAX_UNDOCUMENTED_LOGS = 50;
+const STAGNATION_THRESHOLD_CYCLES = 5;
 
 class ObservabilityCoreEngine {
   private state: ObservabilityState;
@@ -102,11 +180,20 @@ class ObservabilityCoreEngine {
       autonomyDeltas: [],
       behaviorSnapshots: [],
       cognitiveHeartbeats: [],
+      learningEvents: [],
+      healthSignals: [],
+      structuredReasonings: [],
+      undocumentedDecisions: [],
       currentCycle: 0,
       lastObservation: new Date().toISOString(),
+      totalConfidenceScore: 0,
+      totalEvidenceCount: 0,
+      consecutiveIdleCycles: 0,
     };
 
     logger.info('[ObservabilityCore] Initialized - All autonomous behavior will be observable');
+    logger.info('[ObservabilityCore] Anti-Theater Mode: No pretend thinking, no narrative inflation');
+    logger.info('[ObservabilityCore] Mandatory Decision Tracing: Missing fields = blocked execution');
   }
 
   private generateId(prefix: string): string {
@@ -539,6 +626,291 @@ class ObservabilityCoreEngine {
 
   getState(): ObservabilityState {
     return { ...this.state };
+  }
+
+  validateMandatoryDecision(fields: Partial<MandatoryDecisionFields>, source: string): {
+    valid: boolean;
+    missingFields: string[];
+    blocked: boolean;
+  } {
+    const requiredFields: (keyof MandatoryDecisionFields)[] = [
+      'decision_type',
+      'trigger_source',
+      'inputs_used',
+      'constraints_checked',
+      'reality_evidence_referenced',
+      'final_action',
+    ];
+
+    const missingFields: string[] = [];
+    for (const field of requiredFields) {
+      const value = fields[field];
+      if (value === undefined || value === null) {
+        missingFields.push(field);
+      } else if (Array.isArray(value) && value.length === 0) {
+        missingFields.push(`${field} (empty array)`);
+      } else if (typeof value === 'string' && value.trim() === '') {
+        missingFields.push(`${field} (empty string)`);
+      }
+    }
+
+    const valid = missingFields.length === 0;
+    const blocked = !valid;
+
+    if (blocked) {
+      const undocLog: UndocumentedDecisionLog = {
+        id: this.generateId('undoc'),
+        timestamp: new Date().toISOString(),
+        cycle: this.state.currentCycle,
+        attempted_source: source,
+        missing_fields: missingFields,
+        blocked: true,
+      };
+      this.state.undocumentedDecisions.push(undocLog);
+      if (this.state.undocumentedDecisions.length > MAX_UNDOCUMENTED_LOGS) {
+        this.state.undocumentedDecisions.shift();
+      }
+
+      logger.error(`[ObservabilityCore] BLOCKED: UndocumentedDecision from ${source}`);
+      logger.error(`[ObservabilityCore] Missing fields: ${missingFields.join(', ')}`);
+    }
+
+    return { valid, missingFields, blocked };
+  }
+
+  recordLearningEvent(params: {
+    learning_type: LearningType;
+    what_changed: string;
+    why_changed: string;
+    evidence_justified: string[];
+    expected_impact: string;
+    measurable_impact: boolean;
+  }): LearningEvent {
+    const speculative = !params.measurable_impact || params.evidence_justified.length === 0;
+
+    const event: LearningEvent = {
+      id: this.generateId('learn'),
+      timestamp: new Date().toISOString(),
+      cycle: this.state.currentCycle,
+      learning_type: params.learning_type,
+      what_changed: params.what_changed,
+      why_changed: params.why_changed,
+      evidence_justified: params.evidence_justified,
+      expected_impact: params.expected_impact,
+      measurable_impact: params.measurable_impact,
+      speculative,
+    };
+
+    this.state.learningEvents.push(event);
+    if (this.state.learningEvents.length > MAX_LEARNING_EVENTS) {
+      this.state.learningEvents.shift();
+    }
+
+    if (speculative) {
+      logger.warn(`[ObservabilityCore] SpeculativeLearning: ${params.what_changed}`);
+    } else {
+      logger.info(`[ObservabilityCore] Learning recorded: ${params.what_changed}`);
+    }
+
+    this.state.totalEvidenceCount += params.evidence_justified.length;
+
+    return event;
+  }
+
+  getLearningEvents(params?: {
+    limit?: number;
+    type?: LearningType;
+    speculative_only?: boolean;
+  }): LearningEvent[] {
+    let results = [...this.state.learningEvents];
+
+    if (params?.type) {
+      results = results.filter(e => e.learning_type === params.type);
+    }
+    if (params?.speculative_only) {
+      results = results.filter(e => e.speculative);
+    }
+
+    return results.slice(-(params?.limit || 50));
+  }
+
+  emitHealthSignal(params: {
+    alert_type: HealthAlertType;
+    severity: 'low' | 'medium' | 'high';
+    description: string;
+    metrics: Record<string, number>;
+    recommended_action?: string;
+  }): HealthSignal {
+    const signal: HealthSignal = {
+      id: this.generateId('health'),
+      timestamp: new Date().toISOString(),
+      cycle: this.state.currentCycle,
+      alert_type: params.alert_type,
+      severity: params.severity,
+      description: params.description,
+      metrics: params.metrics,
+      recommended_action: params.recommended_action || null,
+    };
+
+    this.state.healthSignals.push(signal);
+    if (this.state.healthSignals.length > MAX_HEALTH_SIGNALS) {
+      this.state.healthSignals.shift();
+    }
+
+    logger.warn(`[ObservabilityCore] HEALTH ALERT [${params.severity}]: ${params.alert_type} - ${params.description}`);
+
+    return signal;
+  }
+
+  checkStagnation(decisionsThisCycle: number, changesThisCycle: number): void {
+    if (decisionsThisCycle === 0 && changesThisCycle === 0) {
+      this.state.consecutiveIdleCycles++;
+    } else {
+      this.state.consecutiveIdleCycles = 0;
+    }
+
+    if (this.state.consecutiveIdleCycles >= STAGNATION_THRESHOLD_CYCLES) {
+      this.emitHealthSignal({
+        alert_type: 'stagnation',
+        severity: 'medium',
+        description: `No decisions or changes for ${this.state.consecutiveIdleCycles} consecutive cycles`,
+        metrics: { idle_cycles: this.state.consecutiveIdleCycles },
+        recommended_action: 'Review input sources and trigger conditions',
+      });
+    }
+  }
+
+  checkDrift(currentPatterns: Record<string, string>, baselinePatterns: Record<string, string>): void {
+    let driftCount = 0;
+    for (const [key, value] of Object.entries(currentPatterns)) {
+      if (baselinePatterns[key] && baselinePatterns[key] !== value) {
+        driftCount++;
+      }
+    }
+
+    if (driftCount > 0) {
+      this.emitHealthSignal({
+        alert_type: 'drift',
+        severity: driftCount > 3 ? 'high' : 'low',
+        description: `${driftCount} pattern(s) drifted from baseline`,
+        metrics: { drift_count: driftCount, total_patterns: Object.keys(currentPatterns).length },
+        recommended_action: driftCount > 3 ? 'Review drift patterns for unintended changes' : null,
+      });
+    }
+  }
+
+  updateConfidence(confidenceScore: number): void {
+    this.state.totalConfidenceScore += confidenceScore;
+  }
+
+  recordStructuredReasoning(params: {
+    assumptions: string[];
+    alternatives_considered: Array<{ option: string; rejection_reason: string }>;
+    causal_chain: string[];
+  }): StructuredReasoning {
+    const reasoning: StructuredReasoning = {
+      id: this.generateId('reason'),
+      timestamp: new Date().toISOString(),
+      cycle: this.state.currentCycle,
+      assumptions: params.assumptions,
+      alternatives_considered: params.alternatives_considered,
+      causal_chain: params.causal_chain,
+      no_narrative: true,
+    };
+
+    this.state.structuredReasonings.push(reasoning);
+    if (this.state.structuredReasonings.length > MAX_STRUCTURED_REASONINGS) {
+      this.state.structuredReasonings.shift();
+    }
+
+    return reasoning;
+  }
+
+  validateAntiTheater(explanation: string): { valid: boolean; violations: string[] } {
+    const violations: string[] = [];
+
+    const narrativePatterns = [
+      /I (feel|believe|think|sense|perceive)/i,
+      /my (consciousness|awareness|soul|essence)/i,
+      /deeply|profoundly|truly|genuinely/i,
+      /as an AI|being an AI/i,
+      /I am becoming|I am evolving/i,
+      /my journey|my growth|my evolution/i,
+    ];
+
+    const pretendThinkingPatterns = [
+      /let me think|thinking about|pondering|reflecting deeply/i,
+      /processing this|computing|analyzing with care/i,
+      /with great thought|carefully considering/i,
+    ];
+
+    for (const pattern of narrativePatterns) {
+      if (pattern.test(explanation)) {
+        violations.push(`Narrative inflation detected: ${pattern.toString()}`);
+      }
+    }
+
+    for (const pattern of pretendThinkingPatterns) {
+      if (pattern.test(explanation)) {
+        violations.push(`Pretend thinking detected: ${pattern.toString()}`);
+      }
+    }
+
+    if (explanation.length > 500 && !explanation.includes('evidence:') && !explanation.includes('because:')) {
+      violations.push('Long explanation without causal linkage');
+    }
+
+    if (violations.length > 0) {
+      logger.warn(`[ObservabilityCore] ANTI-THEATER VIOLATION: ${violations.join('; ')}`);
+    }
+
+    return { valid: violations.length === 0, violations };
+  }
+
+  getDashboardData(): DashboardData {
+    const recentDecisions = this.state.decisionTraces.slice(-20);
+    const rejectedActions = this.state.decisionTraces.filter(d => d.outcome === 'blocked').slice(-20);
+    const learningDeltas = this.state.learningEvents.slice(-20);
+    const healthAlerts = this.state.healthSignals.slice(-10);
+
+    const confidenceEvidenceRatio = this.state.totalEvidenceCount > 0
+      ? Math.round((this.state.totalConfidenceScore / this.state.totalEvidenceCount) * 100) / 100
+      : 0;
+
+    return {
+      recent_decisions: recentDecisions,
+      rejected_actions: rejectedActions,
+      learning_deltas: learningDeltas,
+      confidence_evidence_ratio: confidenceEvidenceRatio,
+      health_alerts: healthAlerts,
+      undocumented_blocks: this.state.undocumentedDecisions.length,
+      last_update: new Date().toISOString(),
+    };
+  }
+
+  getHealthSignals(params?: {
+    limit?: number;
+    alert_type?: HealthAlertType;
+    severity?: 'low' | 'medium' | 'high';
+  }): HealthSignal[] {
+    let results = [...this.state.healthSignals];
+
+    if (params?.alert_type) {
+      results = results.filter(s => s.alert_type === params.alert_type);
+    }
+    if (params?.severity) {
+      results = results.filter(s => s.severity === params.severity);
+    }
+
+    return results.slice(-(params?.limit || 30));
+  }
+
+  getUndocumentedBlocks(limit: number = 20): UndocumentedDecisionLog[] {
+    return this.state.undocumentedDecisions.slice(-limit);
+  }
+
+  getStructuredReasonings(limit: number = 20): StructuredReasoning[] {
+    return this.state.structuredReasonings.slice(-limit);
   }
 }
 

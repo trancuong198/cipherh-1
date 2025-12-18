@@ -1238,6 +1238,108 @@ export async function registerRoutes(
     res.json({ total: results.length, results });
   });
 
+  app.get("/api/observability/dashboard", (_req: Request, res: Response) => {
+    const data = observabilityCore.getDashboardData();
+    res.json(data);
+  });
+
+  app.post("/api/observability/validate-decision", (req: Request, res: Response) => {
+    const { decision_type, trigger_source, inputs_used, constraints_checked, reality_evidence_referenced, final_action, source } = req.body;
+    if (!source) {
+      return res.status(400).json({ error: "source required" });
+    }
+    const result = observabilityCore.validateMandatoryDecision({
+      decision_type,
+      trigger_source,
+      inputs_used,
+      constraints_checked,
+      reality_evidence_referenced,
+      final_action,
+    }, source);
+    res.json(result);
+  });
+
+  app.post("/api/observability/learning", (req: Request, res: Response) => {
+    const { learning_type, what_changed, why_changed, evidence_justified, expected_impact, measurable_impact } = req.body;
+    if (!what_changed || !why_changed) {
+      return res.status(400).json({ error: "what_changed and why_changed required" });
+    }
+    const event = observabilityCore.recordLearningEvent({
+      learning_type: learning_type || 'behavioral',
+      what_changed,
+      why_changed,
+      evidence_justified: evidence_justified || [],
+      expected_impact: expected_impact || 'unknown',
+      measurable_impact: measurable_impact ?? false,
+    });
+    res.json(event);
+  });
+
+  app.get("/api/observability/learning", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const type = req.query.type as string | undefined;
+    const speculative_only = req.query.speculative === 'true';
+    const events = observabilityCore.getLearningEvents({ limit, type: type as any, speculative_only });
+    res.json({ total: events.length, events });
+  });
+
+  app.get("/api/observability/health", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 30;
+    const alert_type = req.query.alert_type as string | undefined;
+    const severity = req.query.severity as string | undefined;
+    const signals = observabilityCore.getHealthSignals({ limit, alert_type: alert_type as any, severity: severity as any });
+    res.json({ total: signals.length, signals });
+  });
+
+  app.post("/api/observability/health", (req: Request, res: Response) => {
+    const { alert_type, severity, description, metrics, recommended_action } = req.body;
+    if (!alert_type || !severity || !description) {
+      return res.status(400).json({ error: "alert_type, severity, and description required" });
+    }
+    const signal = observabilityCore.emitHealthSignal({
+      alert_type,
+      severity,
+      description,
+      metrics: metrics || {},
+      recommended_action,
+    });
+    res.json(signal);
+  });
+
+  app.get("/api/observability/undocumented", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const blocks = observabilityCore.getUndocumentedBlocks(limit);
+    res.json({ total: blocks.length, blocks });
+  });
+
+  app.post("/api/observability/anti-theater", (req: Request, res: Response) => {
+    const { explanation } = req.body;
+    if (!explanation) {
+      return res.status(400).json({ error: "explanation required" });
+    }
+    const result = observabilityCore.validateAntiTheater(explanation);
+    res.json(result);
+  });
+
+  app.post("/api/observability/reasoning", (req: Request, res: Response) => {
+    const { assumptions, alternatives_considered, causal_chain } = req.body;
+    if (!assumptions || !causal_chain) {
+      return res.status(400).json({ error: "assumptions and causal_chain required" });
+    }
+    const reasoning = observabilityCore.recordStructuredReasoning({
+      assumptions,
+      alternatives_considered: alternatives_considered || [],
+      causal_chain,
+    });
+    res.json(reasoning);
+  });
+
+  app.get("/api/observability/structured-reasoning", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const reasonings = observabilityCore.getStructuredReasonings(limit);
+    res.json({ total: reasonings.length, reasonings });
+  });
+
   app.get("/api/escalation/history", (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const history = resourceEscalationCore.getHistory(limit);
