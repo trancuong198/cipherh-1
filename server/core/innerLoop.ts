@@ -10,6 +10,7 @@ import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
 import { memoryDistiller } from "./memoryDistiller";
 import { desireEngine, Desire } from "./desireEngine";
 import { identityCore, IdentityDriftWarning } from "./identityCore";
+import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationEngine";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -30,6 +31,10 @@ export interface InnerLoopResult {
     passed: boolean;
     warnings: number;
     integrityScore: number;
+  };
+  escalation?: {
+    triggered: boolean;
+    proposal: UpgradeProposal | null;
   };
   error?: string;
 }
@@ -344,6 +349,22 @@ export class InnerLoop {
         }
       } catch (error) {
         console.error(`Error in Desire Engine: ${error}`);
+      }
+
+      // ===== STEP 9.6: Resource Escalation =====
+      console.log("Step 9.6: Evaluating resource escalation...");
+      let escalationResult = { triggered: false, proposal: null as UpgradeProposal | null };
+      try {
+        const proposal = await resourceEscalationEngine.generateProposal(cycle);
+        if (proposal) {
+          escalationResult = { triggered: true, proposal };
+          console.log(`UPGRADE_PROPOSAL: ${proposal.proposedUpgrade.specificRequest}`);
+          console.log(`Bottleneck: ${proposal.currentBottleneck.description}`);
+        } else {
+          console.log("No escalation needed or in cooldown");
+        }
+      } catch (error) {
+        console.error(`Error in Resource Escalation: ${error}`);
       }
 
       // ===== STEP 10: Log completion =====

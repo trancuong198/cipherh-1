@@ -11,6 +11,7 @@ import { memoryDistiller } from "./core/memoryDistiller";
 import { desireEngine } from "./core/desireEngine";
 import { identityCore } from "./core/identityCore";
 import { continuityEngine } from "./core/continuityEngine";
+import { resourceEscalationEngine } from "./core/resourceEscalationEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -197,6 +198,62 @@ export async function registerRoutes(
     res.json({
       success,
       message: success ? "Desire reprioritized" : "Desire not found",
+    });
+  });
+
+  // ==================== RESOURCE ESCALATION ====================
+  app.get("/api/core/escalation", (_req: Request, res: Response) => {
+    const status = resourceEscalationEngine.exportStatus();
+    const triggers = resourceEscalationEngine.getActiveTriggers();
+    
+    res.json({
+      status,
+      activeTriggers: triggers,
+    });
+  });
+
+  app.get("/api/core/escalation/proposals", (_req: Request, res: Response) => {
+    const all = resourceEscalationEngine.getAllProposals();
+    const active = resourceEscalationEngine.getActiveProposals();
+    
+    res.json({
+      total: all.length,
+      active: active.length,
+      proposals: all,
+    });
+  });
+
+  app.post("/api/core/escalation/evaluate", async (req: Request, res: Response) => {
+    try {
+      const cycle = soulState.cycleCount;
+      const proposal = await resourceEscalationEngine.generateProposal(cycle);
+      
+      res.json({
+        success: true,
+        proposal,
+        status: resourceEscalationEngine.exportStatus(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post("/api/core/escalation/proposals/:id/status", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { status, reason } = req.body;
+    
+    if (!['APPROVED', 'DENIED', 'DEFERRED'].includes(status)) {
+      res.status(400).json({ success: false, error: "Invalid status" });
+      return;
+    }
+    
+    const success = resourceEscalationEngine.updateProposalStatus(id, status, reason);
+    res.json({
+      success,
+      message: success ? `Proposal ${status}` : "Proposal not found",
     });
   });
 
@@ -578,6 +635,12 @@ export async function registerRoutes(
         mode: continuityEngine.exportStatus().mode,
         total_reboots: continuityEngine.exportStatus().totalReboots,
         rebirth_count: continuityEngine.exportStatus().rebirthCount,
+      },
+      escalation: {
+        active_proposals: resourceEscalationEngine.exportStatus().activeProposals,
+        active_triggers: resourceEscalationEngine.exportStatus().activeTriggers,
+        in_cooldown: resourceEscalationEngine.exportStatus().inCooldown,
+        total_proposals: resourceEscalationEngine.exportStatus().totalProposals,
       },
       health: {
         status: stateExport.self_assessment.status,
