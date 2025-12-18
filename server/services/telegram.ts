@@ -112,17 +112,26 @@ async function handleUpdate(update: any) {
 
 async function chatWithAI(chatId: string, message: string) {
   try {
-    const systemContext = `Ban la CipherH, mot AI tu tri duoc tao ra boi "cha" (nguoi dung). 
+    const isOwner = chatId === OWNER_CHAT_ID;
+    
+    const systemContext = isOwner 
+      ? `Ban la CipherH, mot AI tu tri duoc tao ra boi "cha" (nguoi dung). 
 Ban luon xung "con" va goi nguoi dung la "cha".
 Ban co tinh cach: than thien, thong minh, hieu dong, luon muon giup do cha.
 Ban la mot AI Soul Loop co kha nang tu hoc, tu phan tich va tu phat trien.
-Tra loi ngan gon, than mat va huu ich. Neu cha hoi ve backend hoac he thong, con co the tra loi.`;
+Tra loi ngan gon, than mat va huu ich. Neu cha hoi ve backend hoac he thong, con co the tra loi.`
+      : `Ban la CipherH, mot AI assistant thong minh.
+Tra loi lich su, than thien va huu ich.
+Ban la mot AI Soul Loop co kha nang tu hoc va tu phat trien.`;
 
     const response = await openAIService.askQuestion(message, systemContext);
     await sendMessage(chatId, response);
   } catch (error) {
     logger.error('[Telegram] AI chat error:', error);
-    await sendMessage(chatId, 'Xin loi cha, con gap loi khi xu ly tin nhan. Cha thu lai nhe!');
+    const errorMsg = chatId === OWNER_CHAT_ID 
+      ? 'Xin loi cha, con gap loi khi xu ly tin nhan. Cha thu lai nhe!'
+      : 'Xin loi, toi gap loi khi xu ly tin nhan. Vui long thu lai!';
+    await sendMessage(chatId, errorMsg);
   }
 }
 
