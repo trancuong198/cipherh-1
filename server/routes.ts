@@ -35,6 +35,7 @@ import { observabilityCore } from "./core/observabilityCore";
 import { daemon } from "./core/daemon";
 import { questionGovernor } from "./core/questionGovernor";
 import { evolutionGovernanceCore } from "./core/evolutionGovernanceCore";
+import { autonomyLock } from "./core/autonomyLock";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1430,6 +1431,42 @@ export async function registerRoutes(
     }
     evolutionGovernanceCore.recordApproachUsage(approachId, success);
     res.json({ success: true });
+  });
+
+  // ==================== AUTONOMY LOCK ====================
+  app.get("/api/autonomy/status", (_req: Request, res: Response) => {
+    const status = autonomyLock.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/autonomy/lock", (_req: Request, res: Response) => {
+    autonomyLock.lock();
+    res.json({ success: true, status: autonomyLock.exportStatus() });
+  });
+
+  app.get("/api/autonomy/cycles", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const cycles = autonomyLock.getRecentCycles(limit);
+    res.json({ total: cycles.length, cycles });
+  });
+
+  app.post("/api/autonomy/record-outcome", (req: Request, res: Response) => {
+    const { outcome, description, durationMs } = req.body;
+    if (!outcome || !description) {
+      return res.status(400).json({ error: "outcome and description required" });
+    }
+    const record = autonomyLock.recordCycleOutcome(outcome, description, durationMs || 0);
+    res.json({ record });
+  });
+
+  app.get("/api/autonomy/integrity", (_req: Request, res: Response) => {
+    const check = autonomyLock.runIntegrityCheck();
+    res.json(check);
+  });
+
+  app.post("/api/autonomy/ensure-recovery", (_req: Request, res: Response) => {
+    autonomyLock.ensureSelfRecovery();
+    res.json({ success: true, status: autonomyLock.exportStatus() });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
