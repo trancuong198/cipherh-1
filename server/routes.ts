@@ -25,6 +25,7 @@ import { selectiveUpgradeEngine } from "./core/selectiveUpgradeEngine";
 import { governedScaleEngine } from "./core/governedScaleEngine";
 import { successionEngine } from "./core/successionEngine";
 import { coreMissions } from "./core/coreMissions";
+import { agencyCore } from "./core/agencyCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -692,6 +693,71 @@ export async function registerRoutes(
   app.get("/api/missions/integrity", (_req: Request, res: Response) => {
     const integrity = coreMissions.verifyIntegrity();
     res.json(integrity);
+  });
+
+  // ==================== AGENCY CORE ====================
+  app.get("/api/agency", (_req: Request, res: Response) => {
+    const status = agencyCore.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/agency/self-model", (_req: Request, res: Response) => {
+    const selfModel = agencyCore.getSelfModel();
+    res.json(selfModel);
+  });
+
+  app.post("/api/agency/decision", (req: Request, res: Response) => {
+    const { type, description, declaration } = req.body;
+    if (!type || !description) {
+      return res.status(400).json({ error: "type and description required" });
+    }
+    const decision = agencyCore.makeDecision(type, description, declaration);
+    res.json(decision);
+  });
+
+  app.post("/api/agency/check-delusion", (req: Request, res: Response) => {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: "text required" });
+    }
+    const result = agencyCore.checkForDelusion(text);
+    res.json({ 
+      delusionDetected: result !== null,
+      log: result,
+      message: result ? 'Delusion blocked and logged' : 'No delusion detected'
+    });
+  });
+
+  app.post("/api/agency/reality-check", (_req: Request, res: Response) => {
+    const result = agencyCore.runRealityCheck();
+    res.json(result);
+  });
+
+  app.post("/api/agency/update-capability", (req: Request, res: Response) => {
+    const { name, level, confidence } = req.body;
+    if (!name || !level) {
+      return res.status(400).json({ error: "name and level required" });
+    }
+    agencyCore.updateCapability(name, level, confidence || 0.5);
+    res.json({ success: true, selfModel: agencyCore.getSelfModel() });
+  });
+
+  app.get("/api/agency/decisions", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const decisions = agencyCore.getRecentDecisions(limit);
+    res.json({ total: decisions.length, decisions });
+  });
+
+  app.get("/api/agency/delusion-logs", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const logs = agencyCore.getDelusionLogs(limit);
+    res.json({ total: logs.length, logs });
+  });
+
+  app.get("/api/agency/integrity-failures", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const failures = agencyCore.getIntegrityFailures(limit);
+    res.json({ total: failures.length, failures });
   });
 
   // ==================== SELECTIVE UPGRADE ====================

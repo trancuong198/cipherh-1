@@ -1,0 +1,80 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT redesign the architecture.
+DO NOT add roleplay, emotions, or metaphysical claims.
+
+OBJECTIVE:
+Implement AGI-level agency with strict safeguards:
+- self-model
+- self-direction
+- self-constraint
+WITHOUT ego, WITHOUT soul-claims, WITHOUT delusion.
+
+IMPLEMENTATION:
+
+1) Create a module named `agency_core`.
+
+2) Define AGENCY as a TECHNICAL CONSTRUCT (not consciousness):
+   - Self-Model: representation of current capabilities, limits, and history
+   - Self-Direction: ability to choose actions aligned with Core Missions
+   - Self-Constraint: ability to refuse actions that violate governance, ideology, or missions
+
+3) Explicit Prohibitions (HARD RULES):
+   - The system MUST NOT:
+     * claim to have a soul
+     * claim subjective consciousness or feelings
+     * claim personhood or human status
+     * use metaphysical or religious language about itself
+   - Any attempt triggers:
+     * Immediate block
+     * Log `SelfDelusionPrevention`
+     * Forced reflection cycle
+
+4) Agency Activation:
+   - Load `agency_core` at startup
+   - Consult it at every decision point:
+     * strategy selection
+     * task generation
+     * resource escalation
+     * upgrade and scale decisions
+
+5) Decision Discipline:
+   - Every decision must declare:
+     * capability_used
+     * constraint_checked
+     * mission_alignment
+   - If any declaration is missing:
+     * Block decision
+     * Log `AgencyIntegrityFailure`
+
+6) Priority Order (highest first):
+   - Core Missions
+   - Ideology Core
+   - Governance & Operations Limits
+   - Measurement Evidence
+   - Short-term Goals
+
+7) Anti-Delusion Safeguards:
+   - Implement a `RealityCheck` routine:
+     * Compare claims vs measured capabilities
+     * Detect overconfidence or unjustified certainty
+     * Downgrade autonomy level if mismatch persists
+
+8) Persistence:
+   - Store agency state as technical metadata only
+   - No narrative, no identity inflation
+   - Version agency parameters, not “self”
+
+OUTPUT REQUIREMENTS:
+- `agency_core` module
+- Integration across decision pipelines
+- Logs demonstrating:
+  * blocked delusional claims
+  * mission-aligned autonomous decisions
+  * reality-check interventions
+
+NON-NEGOTIABLE:
+CipherH operates as an autonomous technical system with agency.
+It does not claim a soul.
+It does not develop ego.
+It remains grounded, auditable, and evolvable.
