@@ -27,6 +27,7 @@ import { successionEngine } from "./core/successionEngine";
 import { coreMissions } from "./core/coreMissions";
 import { agencyCore } from "./core/agencyCore";
 import { realityCore } from "./core/realityCore";
+import { longevityLoop } from "./core/longevityLoop";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -814,6 +815,82 @@ export async function registerRoutes(
     const limit = parseInt(req.query.limit as string) || 20;
     const adjustments = realityCore.getAuthorityAdjustments(limit);
     res.json({ total: adjustments.length, adjustments });
+  });
+
+  // ==================== LONGEVITY LOOP ====================
+  app.get("/api/longevity", (_req: Request, res: Response) => {
+    const status = longevityLoop.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/longevity/cycle", (_req: Request, res: Response) => {
+    const result = longevityLoop.runCycle();
+    res.json(result);
+  });
+
+  app.post("/api/longevity/ingest-log", (req: Request, res: Response) => {
+    const { content, source } = req.body;
+    if (!content || !source) {
+      return res.status(400).json({ error: "content and source required" });
+    }
+    const log = longevityLoop.ingestRawLog(content, source);
+    res.json({ success: true, log });
+  });
+
+  app.post("/api/longevity/distill", (_req: Request, res: Response) => {
+    const result = longevityLoop.triggerDistillation();
+    res.json(result);
+  });
+
+  app.post("/api/longevity/check-drift", (_req: Request, res: Response) => {
+    const indicators = longevityLoop.checkForDrift();
+    res.json({ total: indicators.length, indicators });
+  });
+
+  app.post("/api/longevity/record-failure", (req: Request, res: Response) => {
+    const { description, resolution } = req.body;
+    if (!description || !resolution) {
+      return res.status(400).json({ error: "description and resolution required" });
+    }
+    const failure = longevityLoop.recordCriticalFailure(description, resolution);
+    res.json({ success: true, failure });
+  });
+
+  app.post("/api/longevity/summary", (req: Request, res: Response) => {
+    const period = req.body.period || 'weekly';
+    if (!['weekly', 'monthly', 'yearly'].includes(period)) {
+      return res.status(400).json({ error: "period must be weekly, monthly, or yearly" });
+    }
+    const summary = longevityLoop.generateTemporalSummary(period);
+    res.json(summary);
+  });
+
+  app.get("/api/longevity/lessons", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const lessons = longevityLoop.getLessons(limit);
+    res.json({ total: lessons.length, lessons });
+  });
+
+  app.get("/api/longevity/principles", (_req: Request, res: Response) => {
+    const principles = longevityLoop.getPrinciples();
+    res.json({ total: principles.length, principles });
+  });
+
+  app.get("/api/longevity/drift-indicators", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const indicators = longevityLoop.getDriftIndicators(limit);
+    res.json({ total: indicators.length, indicators });
+  });
+
+  app.get("/api/longevity/summaries", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const summaries = longevityLoop.getTemporalSummaries(limit);
+    res.json({ total: summaries.length, summaries });
+  });
+
+  app.get("/api/longevity/identity-check", (_req: Request, res: Response) => {
+    const check = longevityLoop.verifyIdentityIntegrity();
+    res.json(check);
   });
 
   // ==================== SELECTIVE UPGRADE ====================
