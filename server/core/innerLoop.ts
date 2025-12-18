@@ -8,6 +8,7 @@ import { memoryBridge } from "./memory";
 import { openAIService } from "../services/openai";
 import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
 import { memoryDistiller } from "./memoryDistiller";
+import { desireEngine, Desire } from "./desireEngine";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -290,6 +291,22 @@ export class InnerLoop {
         console.log(`Improvements: ${evolutionEntry.improvements.join(', ')}`);
       } catch (error) {
         console.error(`Error in Evolution Kernel: ${error}`);
+      }
+
+      // ===== STEP 9.5: Desire Generation =====
+      console.log("Step 9.5: Generating desires...");
+      let generatedDesires: Desire[] = [];
+      try {
+        generatedDesires = await desireEngine.generateDesires(cycle);
+        const achievable = desireEngine.getAchievableDesires();
+        const blocked = desireEngine.getBlockedDesires();
+        console.log(`Desires: ${achievable.length} achievable, ${blocked.length} blocked`);
+        
+        if (blocked.length > 0) {
+          console.log(`RESOURCE_HUNGER: ${blocked.map(d => d.blockedReason).join('; ')}`);
+        }
+      } catch (error) {
+        console.error(`Error in Desire Engine: ${error}`);
       }
 
       // ===== STEP 10: Log completion =====

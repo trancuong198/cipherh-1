@@ -8,6 +8,7 @@ import { strategist } from "./core/strategist";
 import { memoryBridge } from "./core/memory";
 import { evolutionKernel } from "./core/evolutionKernel";
 import { memoryDistiller } from "./core/memoryDistiller";
+import { desireEngine } from "./core/desireEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -122,6 +123,69 @@ export async function registerRoutes(
       context,
       recalled,
       count: recalled.length,
+    });
+  });
+
+  // ==================== DESIRE ENGINE ====================
+  app.get("/api/core/desires", (_req: Request, res: Response) => {
+    const status = desireEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/core/desires/all", (_req: Request, res: Response) => {
+    const desires = desireEngine.getAllDesires();
+    const resourceHunger = desireEngine.getResourceHunger();
+    
+    res.json({
+      desires,
+      resourceHunger,
+      achievable: desireEngine.getAchievableDesires(),
+      blocked: desireEngine.getBlockedDesires(),
+    });
+  });
+
+  app.post("/api/core/desires/generate", async (req: Request, res: Response) => {
+    try {
+      const cycle = soulState.cycleCount;
+      const desires = await desireEngine.generateDesires(cycle);
+      
+      res.json({
+        success: true,
+        generated: desires.length,
+        desires,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post("/api/core/desires/:id/resolve", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const success = desireEngine.resolveDesire(id);
+    
+    res.json({
+      success,
+      message: success ? "Desire resolved" : "Desire not found",
+    });
+  });
+
+  app.post("/api/core/desires/:id/reprioritize", (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { priority } = req.body;
+    
+    if (!["low", "medium", "high"].includes(priority)) {
+      res.status(400).json({ success: false, error: "Invalid priority" });
+      return;
+    }
+    
+    const success = desireEngine.reprioritize(id, priority);
+    res.json({
+      success,
+      message: success ? "Desire reprioritized" : "Desire not found",
     });
   });
 
@@ -379,6 +443,12 @@ export async function registerRoutes(
         active_lessons_count: memoryDistiller.exportStatus().activeLessonsCount,
         total_processed: memoryDistiller.exportStatus().totalProcessed,
         total_discarded: memoryDistiller.exportStatus().totalDiscarded,
+      },
+      desires: {
+        active: desireEngine.getAchievableDesires().length,
+        blocked: desireEngine.getBlockedDesires().length,
+        resource_hunger: desireEngine.getResourceHunger().length,
+        total_generated: desireEngine.exportStatus().totalGenerated,
       },
       health: {
         status: stateExport.self_assessment.status,
