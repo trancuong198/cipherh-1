@@ -40,3 +40,8 @@ waitForPort = 5000
 
 [agent]
 integrations = ["notion:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_OWNER_CHAT_ID = "6538590650"
