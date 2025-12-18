@@ -15,6 +15,7 @@ import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationE
 import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
 import { metaEvolutionEngine } from "./metaEvolutionEngine";
 import { measurementEngine, DailyScorecard } from "./measurementEngine";
+import { observabilityCore } from "./observabilityCore";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -90,6 +91,8 @@ export class InnerLoop {
       console.log(`SOUL LOOP CYCLE ${cycle} - START`);
       console.log("=".repeat(60));
 
+      observabilityCore.setCycle(cycle);
+
       // ===== STEP 0: Identity Check (before any processing) =====
       console.log("Step 0: Identity verification...");
       let identityWarnings: IdentityDriftWarning[] = [];
@@ -117,6 +120,20 @@ export class InnerLoop {
         };
 
         console.log(`Identity check: ${identityCheckResult.passed ? 'PASSED' : 'WARNINGS'} (integrity: ${identityCheckResult.integrityScore}%)`);
+
+        observabilityCore.traceDecision({
+          source: 'inner_loop',
+          trigger: 'cycle_start_identity_verification',
+          stateSnapshot: { cycle, integrityScore: identityCheckResult.integrityScore },
+          options: [
+            { description: 'Continue cycle (identity intact)', score: identityCheckResult.passed ? 100 : 50 },
+            { description: 'Halt cycle (identity compromised)', score: identityCheckResult.passed ? 0 : 50 },
+          ],
+          chosenIndex: identityCheckResult.passed ? 0 : 0,
+          constraintsChecked: ['identity_integrity', 'no_drift_warnings'],
+          evidenceUsed: [`integrity_score=${identityCheckResult.integrityScore}`, `warnings=${identityWarnings.length}`],
+          outcome: 'executed',
+        });
       } catch (error) {
         console.error(`Error during identity check: ${error}`);
       }
@@ -218,6 +235,32 @@ export class InnerLoop {
 
         const pendingTasks = desireCore.getPendingTasks();
         console.log(`[DesireCore] Total pending tasks: ${pendingTasks.length}`);
+
+        if (desireCoreResult.desiresDetected > 0) {
+          observabilityCore.traceDecision({
+            source: 'desire_core',
+            trigger: 'mission_gap_detection',
+            stateSnapshot: { cycle, desiresCount: desireCoreResult.desiresDetected },
+            options: desireCoreResult.desires.slice(0, 5).map(d => ({
+              description: d.description,
+              score: d.urgencyLevel === 'high' ? 100 : d.urgencyLevel === 'medium' ? 60 : 30,
+              constraints: [`mission:${d.missionAlignment.join(',')}`],
+              evidence: [d.sourceSignal],
+            })),
+            chosenIndex: 0,
+            constraintsChecked: ['mission_alignment', 'forbidden_patterns'],
+            evidenceUsed: desireCoreResult.desires.map(d => d.sourceSignal),
+            outcome: 'executed',
+          });
+
+          observabilityCore.summarizeReasoning({
+            decisionId: 'desire_evaluation',
+            trigger: 'inner_loop_step_3.5',
+            keyAssumptions: ['Desires arise from mission gaps only', 'No emotion-based triggers'],
+            discardedPaths: [{ path: 'self_validation_desire', reason: 'Forbidden pattern' }],
+            finalLogic: `Detected ${desireCoreResult.desiresDetected} desires from proxy evaluation, generated ${desireCoreResult.tasksGenerated} tasks`,
+          });
+        }
       } catch (error) {
         console.error(`[DesireCore] Error during desire evaluation: ${error}`);
       }
@@ -510,6 +553,25 @@ export class InnerLoop {
       console.log(`Evolution: ${evolutionState.version} | Mode: ${evolutionState.mode}`);
       console.log(`Next cycle in ${this.sleepMinutes} minutes`);
       console.log("=".repeat(60));
+
+      observabilityCore.captureBehaviorSnapshot(
+        {
+          evolution_mode: evolutionState.mode,
+          identity_status: identityCheckResult.passed ? 'intact' : 'warning',
+          desire_activity: desireCoreResult.desiresDetected > 0 ? 'active' : 'dormant',
+          governance_mode: governanceEngine.exportStatus().conservativeMode ? 'conservative' : 'normal',
+        },
+        {
+          cycle,
+          anomaly_score: anomalyScore,
+          confidence: soulState.confidence,
+          doubts: soulState.doubts,
+          identity_integrity: identityCheckResult.integrityScore,
+          desires_detected: desireCoreResult.desiresDetected,
+          tasks_generated: desireCoreResult.tasksGenerated,
+          measurement_score: measurementResult?.overallScore || 0,
+        }
+      );
 
       this.isRunning = false;
 

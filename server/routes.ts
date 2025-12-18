@@ -31,6 +31,7 @@ import { longevityLoop } from "./core/longevityLoop";
 import { identityRelationCore } from "./core/identityRelationCore";
 import { desireCore } from "./core/desireCore";
 import { resourceEscalationCore } from "./core/resourceEscalationCore";
+import { observabilityCore } from "./core/observabilityCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1110,6 +1111,79 @@ export async function registerRoutes(
   app.get("/api/escalation/bottlenecks", (_req: Request, res: Response) => {
     const bottlenecks = resourceEscalationCore.getBottlenecks();
     res.json({ total: bottlenecks.length, bottlenecks });
+  });
+
+  // ==================== OBSERVABILITY CORE ====================
+  app.get("/api/observability", (_req: Request, res: Response) => {
+    const status = observabilityCore.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/observability/decisions", (req: Request, res: Response) => {
+    const source = req.query.source as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const fromCycle = req.query.fromCycle ? parseInt(req.query.fromCycle as string) : undefined;
+    const traces = observabilityCore.getDecisionTraces({ 
+      source: source as any, 
+      limit, 
+      fromCycle 
+    });
+    res.json({ total: traces.length, traces });
+  });
+
+  app.get("/api/observability/reasoning", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const summaries = observabilityCore.getReasoningSummaries(limit);
+    res.json({ total: summaries.length, summaries });
+  });
+
+  app.get("/api/observability/deltas", (req: Request, res: Response) => {
+    const domain = req.query.domain as string | undefined;
+    const changeType = req.query.changeType as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 30;
+    const deltas = observabilityCore.getAutonomyDeltas({ 
+      domain, 
+      changeType: changeType as any, 
+      limit 
+    });
+    res.json({ total: deltas.length, deltas });
+  });
+
+  app.get("/api/observability/snapshots", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const snapshots = observabilityCore.getBehaviorSnapshots(limit);
+    res.json({ total: snapshots.length, snapshots });
+  });
+
+  app.get("/api/observability/timeline", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const timeline = observabilityCore.getEvolutionTimeline(limit);
+    res.json({ total: timeline.length, timeline });
+  });
+
+  app.get("/api/observability/diff", (req: Request, res: Response) => {
+    const cycleA = parseInt(req.query.cycleA as string);
+    const cycleB = parseInt(req.query.cycleB as string);
+    if (isNaN(cycleA) || isNaN(cycleB)) {
+      return res.status(400).json({ error: "cycleA and cycleB required" });
+    }
+    const diff = observabilityCore.diffBehavior(cycleA, cycleB);
+    if (!diff) {
+      return res.status(404).json({ error: "Snapshots not found for specified cycles" });
+    }
+    res.json(diff);
+  });
+
+  app.post("/api/observability/query", (req: Request, res: Response) => {
+    const { sources, outcomes, fromTimestamp, toTimestamp, containsEvidence } = req.body;
+    const results = observabilityCore.queryDecisions({
+      sources,
+      outcomes,
+      fromTimestamp,
+      toTimestamp,
+      containsEvidence,
+    });
+    res.json({ total: results.length, results });
   });
 
   app.get("/api/escalation/history", (req: Request, res: Response) => {
