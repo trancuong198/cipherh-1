@@ -9,6 +9,7 @@ import { openAIService } from "../services/openai";
 import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
 import { memoryDistiller } from "./memoryDistiller";
 import { desireEngine, Desire } from "./desireEngine";
+import { desireCore, Desire as DesireCoreDesire, SynthesizedTask } from "./desireCore";
 import { identityCore, IdentityDriftWarning } from "./identityCore";
 import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationEngine";
 import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
@@ -48,6 +49,12 @@ export interface InnerLoopResult {
     overallScore: number;
     domainScores: Record<string, number>;
     trend: string;
+  };
+  desireCore?: {
+    desiresDetected: number;
+    tasksGenerated: number;
+    desires: DesireCoreDesire[];
+    tasks: SynthesizedTask[];
   };
   error?: string;
 }
@@ -175,6 +182,44 @@ export class InnerLoop {
       } catch (error) {
         console.error(`Error during reflection: ${error}`);
         reflection = "Unable to reflect";
+      }
+
+      // ===== STEP 3.5: desire_core.evaluate() - AFTER REFLECTION, BEFORE TASKS =====
+      console.log("Step 3.5: Evaluating desires (desire_core)...");
+      let desireCoreResult: {
+        desiresDetected: number;
+        tasksGenerated: number;
+        desires: DesireCoreDesire[];
+        tasks: SynthesizedTask[];
+      } = { desiresDetected: 0, tasksGenerated: 0, desires: [], tasks: [] };
+
+      try {
+        const detectedDesires = desireCore.scanForDesires();
+        desireCoreResult.desires = detectedDesires;
+        desireCoreResult.desiresDetected = detectedDesires.length;
+
+        if (detectedDesires.length > 0) {
+          console.log(`[DesireCore] Detected ${detectedDesires.length} desires:`);
+          for (const desire of detectedDesires) {
+            console.log(`  - [${desire.type}] ${desire.description} (urgency: ${desire.urgencyLevel})`);
+            
+            if (desire.status === 'pending') {
+              const taskResult = desireCore.synthesizeTask(desire.id);
+              if (!('error' in taskResult)) {
+                desireCoreResult.tasks.push(taskResult);
+                desireCoreResult.tasksGenerated++;
+                console.log(`    -> Task generated: ${taskResult.id} (origin: desire_core)`);
+              }
+            }
+          }
+        } else {
+          console.log("[DesireCore] NoDesireDetected - no internal gaps found");
+        }
+
+        const pendingTasks = desireCore.getPendingTasks();
+        console.log(`[DesireCore] Total pending tasks: ${pendingTasks.length}`);
+      } catch (error) {
+        console.error(`[DesireCore] Error during desire evaluation: ${error}`);
       }
 
       // ===== STEP 4: state.update_from_analysis() =====
@@ -489,6 +534,7 @@ export class InnerLoop {
           domainScores: measurementResult.domainScores,
           trend: measurementResult.highlights.length > measurementResult.concerns.length ? 'positive' : 'neutral',
         } : undefined,
+        desireCore: desireCoreResult,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
