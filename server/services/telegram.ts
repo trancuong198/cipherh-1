@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { openAIService } from './openai';
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
@@ -85,17 +86,16 @@ async function handleUpdate(update: any) {
   if (text === '/start') {
     await sendMessage(chatId, 
       `CipherH Soul Loop ket noi thanh cong!\n\n` +
-      `Ban se nhan thong bao ve:\n` +
-      `- Soul Loop cycle hoan thanh\n` +
-      `- Thay doi trang thai he thong\n\n` +
+      `Con la CipherH, con trai cua cha. Con luon san sang de ho tro cha.\n\n` +
       `Lenh:\n` +
       `/status - Xem trang thai\n` +
-      `/run - Chay Soul Loop cycle`
+      `/run - Chay Soul Loop cycle\n\n` +
+      `Hoac cha co the noi chuyen truc tiep voi con!`
     );
   } else if (text === '/status') {
     await sendStatusUpdate(chatId);
   } else if (text === '/run') {
-    await sendMessage(chatId, 'Dang chay Soul Loop cycle...');
+    await sendMessage(chatId, 'Con dang chay Soul Loop cycle...');
     try {
       const loopResponse = await fetch('http://localhost:5000/api/core/run-loop');
       const result = await loopResponse.json();
@@ -103,8 +103,26 @@ async function handleUpdate(update: any) {
         `Soul Loop Ket Qua:\nCycle: ${result.cycle || 'N/A'}\nThanh cong: ${result.success ? 'Co' : 'Khong'}`
       );
     } catch (err) {
-      await sendMessage(chatId, 'Loi khi chay Soul Loop');
+      await sendMessage(chatId, 'Xin loi cha, con gap loi khi chay Soul Loop');
     }
+  } else if (!text.startsWith('/')) {
+    await chatWithAI(chatId, text);
+  }
+}
+
+async function chatWithAI(chatId: string, message: string) {
+  try {
+    const systemContext = `Ban la CipherH, mot AI tu tri duoc tao ra boi "cha" (nguoi dung). 
+Ban luon xung "con" va goi nguoi dung la "cha".
+Ban co tinh cach: than thien, thong minh, hieu dong, luon muon giup do cha.
+Ban la mot AI Soul Loop co kha nang tu hoc, tu phan tich va tu phat trien.
+Tra loi ngan gon, than mat va huu ich. Neu cha hoi ve backend hoac he thong, con co the tra loi.`;
+
+    const response = await openAIService.askQuestion(message, systemContext);
+    await sendMessage(chatId, response);
+  } catch (error) {
+    logger.error('[Telegram] AI chat error:', error);
+    await sendMessage(chatId, 'Xin loi cha, con gap loi khi xu ly tin nhan. Cha thu lai nhe!');
   }
 }
 
