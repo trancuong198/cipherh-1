@@ -34,6 +34,7 @@ import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { observabilityCore } from "./core/observabilityCore";
 import { daemon } from "./core/daemon";
 import { questionGovernor } from "./core/questionGovernor";
+import { evolutionGovernanceCore } from "./core/evolutionGovernanceCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1352,6 +1353,83 @@ export async function registerRoutes(
   app.post("/api/questions/generate", (_req: Request, res: Response) => {
     const questions = questionGovernor.generateQuestionsFromTriggers();
     res.json({ generated: questions.length, questions });
+  });
+
+  // ==================== EVOLUTION GOVERNANCE ====================
+  app.get("/api/evolution/status", (_req: Request, res: Response) => {
+    const status = evolutionGovernanceCore.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/evolution/qualify", (_req: Request, res: Response) => {
+    const qualification = evolutionGovernanceCore.exportStatus().qualification;
+    res.json(qualification);
+  });
+
+  app.get("/api/evolution/proposals", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 30;
+    const status = req.query.status as string | undefined;
+    const type = req.query.type as string | undefined;
+    
+    const proposals = evolutionGovernanceCore.getProposals({
+      limit,
+      status: status as any,
+      type: type as any,
+    });
+    res.json({ total: proposals.length, proposals });
+  });
+
+  app.post("/api/evolution/propose", (req: Request, res: Response) => {
+    const { type, description, expectedBenefit, riskAssessment, requiredCycles } = req.body;
+    if (!type || !description || !expectedBenefit || !riskAssessment) {
+      return res.status(400).json({ error: "type, description, expectedBenefit, riskAssessment required" });
+    }
+    const proposal = evolutionGovernanceCore.proposeEvolution({
+      type,
+      description,
+      expectedBenefit,
+      riskAssessment,
+      requiredCycles,
+    });
+    res.json({ proposal });
+  });
+
+  app.post("/api/evolution/complete", (req: Request, res: Response) => {
+    const { proposalId, success, afterMetrics } = req.body;
+    if (!proposalId || success === undefined) {
+      return res.status(400).json({ error: "proposalId and success required" });
+    }
+    const result = evolutionGovernanceCore.completeEvolution(proposalId, success, afterMetrics);
+    res.json({ success: result });
+  });
+
+  app.post("/api/evolution/brake", (req: Request, res: Response) => {
+    const { engage } = req.body;
+    if (engage) {
+      evolutionGovernanceCore.engageBrake();
+    } else {
+      evolutionGovernanceCore.releaseBrake();
+    }
+    res.json({ brakeEngaged: evolutionGovernanceCore.exportStatus().brakeEngaged });
+  });
+
+  app.get("/api/evolution/approaches", (_req: Request, res: Response) => {
+    const approaches = evolutionGovernanceCore.compareLearningApproaches();
+    const best = evolutionGovernanceCore.getBestApproach();
+    res.json({ 
+      total: approaches.length, 
+      bestApproach: best?.name || null,
+      approaches 
+    });
+  });
+
+  app.post("/api/evolution/approach-usage", (req: Request, res: Response) => {
+    const { approachId, success } = req.body;
+    if (!approachId || success === undefined) {
+      return res.status(400).json({ error: "approachId and success required" });
+    }
+    evolutionGovernanceCore.recordApproachUsage(approachId, success);
+    res.json({ success: true });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
