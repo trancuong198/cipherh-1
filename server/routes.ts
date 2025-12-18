@@ -16,6 +16,7 @@ import { governanceEngine } from "./core/governanceEngine";
 import { metaEvolutionEngine } from "./core/metaEvolutionEngine";
 import { providerRegistry } from "./providers/providerRegistry";
 import { measurementEngine } from "./core/measurementEngine";
+import { socialFeedbackEngine } from "./core/socialFeedbackEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -351,6 +352,86 @@ export async function registerRoutes(
       success,
       message: success ? "Reverted to fallback" : "Revert failed",
     });
+  });
+
+  // ==================== SOCIAL FEEDBACK ENGINE ====================
+  app.get("/api/social-feedback", (_req: Request, res: Response) => {
+    const status = socialFeedbackEngine.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/social-feedback/ingest", async (req: Request, res: Response) => {
+    const { source, sourceId, content, metadata } = req.body;
+    
+    if (!source || !sourceId || !content) {
+      res.status(400).json({ success: false, error: "Missing required fields" });
+      return;
+    }
+    
+    try {
+      const feedback = await socialFeedbackEngine.ingestFeedback({
+        source,
+        sourceId,
+        content,
+        metadata,
+      });
+      res.json({ success: true, feedback });
+    } catch (error) {
+      res.status(400).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/social-feedback/process", async (_req: Request, res: Response) => {
+    try {
+      const result = await socialFeedbackEngine.processFeedbackQueue();
+      res.json({ success: true, result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.get("/api/social-feedback/pending", (_req: Request, res: Response) => {
+    const pending = socialFeedbackEngine.getPendingFeedback();
+    res.json({ total: pending.length, pending });
+  });
+
+  app.get("/api/social-feedback/useful", (_req: Request, res: Response) => {
+    const useful = socialFeedbackEngine.getUsefulFeedback();
+    res.json({ total: useful.length, useful });
+  });
+
+  app.get("/api/social-feedback/risks", (_req: Request, res: Response) => {
+    const risks = socialFeedbackEngine.getRiskSignals();
+    res.json({ total: risks.length, risks });
+  });
+
+  app.get("/api/social-feedback/sources", (_req: Request, res: Response) => {
+    const sources = socialFeedbackEngine.getAllSourceCredibilities();
+    res.json({ total: sources.length, sources });
+  });
+
+  app.post("/api/social-feedback/rate-limit", (req: Request, res: Response) => {
+    const { maxPerCycle } = req.body;
+    
+    if (typeof maxPerCycle !== 'number') {
+      res.status(400).json({ success: false, error: "maxPerCycle must be a number" });
+      return;
+    }
+    
+    socialFeedbackEngine.setRateLimit(maxPerCycle);
+    res.json({ success: true, maxPerCycle });
+  });
+
+  app.post("/api/social-feedback/toggle", (req: Request, res: Response) => {
+    const { enabled } = req.body;
+    
+    if (enabled) {
+      socialFeedbackEngine.enable();
+    } else {
+      socialFeedbackEngine.disable();
+    }
+    
+    res.json({ success: true, enabled: socialFeedbackEngine.isEnabled() });
   });
 
   // ==================== MEASUREMENT ENGINE ====================
