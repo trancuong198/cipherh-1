@@ -9,6 +9,7 @@ import { openAIService } from "../services/openai";
 import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
 import { memoryDistiller } from "./memoryDistiller";
 import { desireEngine, Desire } from "./desireEngine";
+import { identityCore, IdentityDriftWarning } from "./identityCore";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -25,6 +26,11 @@ export interface InnerLoopResult {
     evolution_mode: string;
   };
   evolution?: EvolutionLogEntry;
+  identityCheck?: {
+    passed: boolean;
+    warnings: number;
+    integrityScore: number;
+  };
   error?: string;
 }
 
@@ -58,6 +64,37 @@ export class InnerLoop {
       console.log("=".repeat(60));
       console.log(`SOUL LOOP CYCLE ${cycle} - START`);
       console.log("=".repeat(60));
+
+      // ===== STEP 0: Identity Check (before any processing) =====
+      console.log("Step 0: Identity verification...");
+      let identityWarnings: IdentityDriftWarning[] = [];
+      let identityCheckResult = { passed: true, warnings: 0, integrityScore: 100 };
+      
+      try {
+        await identityCore.loadFromNotion();
+        
+        identityWarnings = identityCore.performIdentityCheck({
+          cycleCount: cycle,
+          recentActions: [],
+          stateFlags: {
+            autoRewritingIdentity: false,
+            fabricatingMemory: false,
+            ignoringResourceLimits: false,
+          },
+          claims: [],
+        });
+
+        const identityStatus = identityCore.exportStatus();
+        identityCheckResult = {
+          passed: identityWarnings.length === 0,
+          warnings: identityWarnings.length,
+          integrityScore: identityStatus.integrityScore,
+        };
+
+        console.log(`Identity check: ${identityCheckResult.passed ? 'PASSED' : 'WARNINGS'} (integrity: ${identityCheckResult.integrityScore}%)`);
+      } catch (error) {
+        console.error(`Error during identity check: ${error}`);
+      }
 
       // ===== STEP 1: Read logs from analyzer =====
       console.log("Step 1: Reading and analyzing logs...");
@@ -334,6 +371,7 @@ export class InnerLoop {
           evolution_mode: evolutionState.mode,
         },
         evolution: evolutionEntry,
+        identityCheck: identityCheckResult,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

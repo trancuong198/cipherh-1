@@ -9,6 +9,7 @@ import { memoryBridge } from "./core/memory";
 import { evolutionKernel } from "./core/evolutionKernel";
 import { memoryDistiller } from "./core/memoryDistiller";
 import { desireEngine } from "./core/desireEngine";
+import { identityCore } from "./core/identityCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -186,6 +187,71 @@ export async function registerRoutes(
     res.json({
       success,
       message: success ? "Desire reprioritized" : "Desire not found",
+    });
+  });
+
+  // ==================== IDENTITY CORE ====================
+  app.get("/api/core/identity", (_req: Request, res: Response) => {
+    const identity = identityCore.getIdentity();
+    const status = identityCore.exportStatus();
+    
+    res.json({
+      identity: {
+        origin: identity.origin,
+        purpose: identity.purpose,
+        nonNegotiables: identity.nonNegotiables.length,
+        boundaries: identity.boundaries.length,
+        currentVersion: identity.currentVersion,
+        isLocked: identity.isLocked,
+      },
+      status,
+    });
+  });
+
+  app.get("/api/core/identity/full", (_req: Request, res: Response) => {
+    const identity = identityCore.getIdentity();
+    const state = identityCore.getState();
+    
+    res.json({
+      identity,
+      driftWarnings: state.driftWarnings,
+      checksPerformed: state.checksPerformed,
+      lastCheck: state.lastCheck,
+      integrityScore: state.integrityScore,
+    });
+  });
+
+  app.get("/api/core/identity/warnings", (_req: Request, res: Response) => {
+    const warnings = identityCore.getDriftWarnings();
+    const status = identityCore.exportStatus();
+    
+    res.json({
+      warnings,
+      recentCount: status.recentWarnings,
+      integrityScore: status.integrityScore,
+    });
+  });
+
+  app.post("/api/core/identity/check", (req: Request, res: Response) => {
+    const { claims = [], stateFlags = {} } = req.body;
+    
+    const warnings = identityCore.performIdentityCheck({
+      cycleCount: soulState.cycleCount,
+      recentActions: [],
+      stateFlags: {
+        autoRewritingIdentity: stateFlags.autoRewritingIdentity || false,
+        fabricatingMemory: stateFlags.fabricatingMemory || false,
+        ignoringResourceLimits: stateFlags.ignoringResourceLimits || false,
+      },
+      claims,
+    });
+    
+    const status = identityCore.exportStatus();
+    
+    res.json({
+      passed: warnings.length === 0,
+      warnings,
+      integrityScore: status.integrityScore,
     });
   });
 
@@ -449,6 +515,13 @@ export async function registerRoutes(
         blocked: desireEngine.getBlockedDesires().length,
         resource_hunger: desireEngine.getResourceHunger().length,
         total_generated: desireEngine.exportStatus().totalGenerated,
+      },
+      identity: {
+        version: identityCore.exportStatus().version,
+        integrity_score: identityCore.exportStatus().integrityScore,
+        checks_performed: identityCore.exportStatus().checksPerformed,
+        recent_warnings: identityCore.exportStatus().recentWarnings,
+        is_locked: identityCore.exportStatus().isLocked,
       },
       health: {
         status: stateExport.self_assessment.status,
