@@ -58,9 +58,6 @@ export class MemoryBridge {
           },
           "cipher h": {
             rich_text: [{ text: { content: text.substring(0, 2000) } }]
-          },
-          "phần tử": {
-            rich_text: [{ text: { content: "LESSON" } }]
           }
         }
       });
@@ -91,9 +88,6 @@ export class MemoryBridge {
           },
           "cipher h": {
             rich_text: [{ text: { content: summary.substring(0, 2000) } }]
-          },
-          "phần tử": {
-            rich_text: [{ text: { content: "DAILY_SUMMARY" } }]
           }
         }
       });
@@ -134,9 +128,6 @@ export class MemoryBridge {
           },
           "cipher h": {
             rich_text: [{ text: { content: stateText.substring(0, 2000) } }]
-          },
-          "phần tử": {
-            rich_text: [{ text: { content: "STATE_SNAPSHOT" } }]
           }
         }
       });
@@ -167,9 +158,6 @@ export class MemoryBridge {
           },
           "cipher h": {
             rich_text: [{ text: { content: note.substring(0, 2000) } }]
-          },
-          "phần tử": {
-            rich_text: [{ text: { content: `STRATEGY_${strategyType.toUpperCase()}` } }]
           }
         }
       });
