@@ -701,6 +701,30 @@ export async function registerRoutes(
     res.json({ total: proxies.length, proxies });
   });
 
+  app.get("/api/missions/short-term", (_req: Request, res: Response) => {
+    const missions = coreMissions.getShortTermMissions();
+    const active = coreMissions.getActiveShortTermMission();
+    const pressure = coreMissions.getShortTermMissionPressure();
+    res.json({ 
+      total: missions.length, 
+      activeMission: active,
+      pressure,
+      missions 
+    });
+  });
+
+  app.post("/api/missions/short-term/update", (req: Request, res: Response) => {
+    const { cycle, metricValue, anomalyScore } = req.body;
+    if (cycle === undefined || metricValue === undefined) {
+      return res.status(400).json({ error: "cycle and metricValue required" });
+    }
+    const result = coreMissions.updateShortTermMission(cycle, metricValue, anomalyScore || 0);
+    if (!result) {
+      return res.status(404).json({ error: "No active short-term mission" });
+    }
+    res.json(result);
+  });
+
   app.post("/api/missions/evaluate-proxies", (req: Request, res: Response) => {
     const { metrics } = req.body;
     if (!metrics || typeof metrics !== 'object') {

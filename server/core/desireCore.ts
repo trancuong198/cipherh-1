@@ -161,6 +161,17 @@ class DesireCoreEngine {
       }
     }
 
+    const shortTermPressure = coreMissions.getShortTermMissionPressure();
+    if (shortTermPressure.hasActiveMission && shortTermPressure.pressure !== 'none') {
+      const urgency: UrgencyLevel = shortTermPressure.pressure === 'high' ? 'high' : 
+                                     shortTermPressure.pressure === 'medium' ? 'medium' : 'low';
+      gaps.push({
+        missionId: 'M1_CONTINUITY_OF_SELF',
+        urgency,
+        description: `SHORT-TERM MISSION PRESSURE: ${shortTermPressure.description} (gap=${shortTermPressure.gapFromTarget})`,
+      });
+    }
+
     return gaps;
   }
 

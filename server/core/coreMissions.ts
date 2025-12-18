@@ -43,6 +43,22 @@ export interface MissionMisalignment {
   resolution: string;
 }
 
+export interface ShortTermMission {
+  id: string;
+  name: string;
+  description: string;
+  metric: string;
+  targetValue: number;
+  currentValue: number;
+  startValue: number;
+  direction: 'increase' | 'decrease' | 'maintain';
+  deadline: string;
+  startedAt: string;
+  status: 'active' | 'completed' | 'failed' | 'expired';
+  linkedProxy: string;
+  checkpoints: Array<{ cycle: number; value: number; timestamp: string }>;
+}
+
 export interface MissionProxy {
   id: string;
   missionId: MissionId;
@@ -192,6 +208,7 @@ class CoreMissionsEngine {
   private readonly loadedAt: string;
   private violations: MissionViolation[];
   private misalignments: MissionMisalignment[];
+  private shortTermMissions: ShortTermMission[];
   private readonly maxLogs = 100;
 
   constructor() {
@@ -200,8 +217,35 @@ class CoreMissionsEngine {
     this.loadedAt = new Date().toISOString();
     this.violations = [];
     this.misalignments = [];
+    this.shortTermMissions = [];
+
+    this.initializeDefaultShortTermMission();
 
     logger.info('[CoreMissions] Loaded - SƠ TÂM active, immutable, priority-ordered');
+  }
+
+  private initializeDefaultShortTermMission(): void {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const stabilityMission: ShortTermMission = {
+      id: 'stm_7day_stability',
+      name: '7-Day Stability Challenge',
+      description: 'Maintain stability score above 70 for 7 consecutive days without anomaly score exceeding 50',
+      metric: 'stability_score',
+      targetValue: 70,
+      currentValue: 50,
+      startValue: 50,
+      direction: 'maintain',
+      deadline: deadline.toISOString(),
+      startedAt: now.toISOString(),
+      status: 'active',
+      linkedProxy: 'proxy_m1_restart_recovery',
+      checkpoints: [],
+    };
+
+    this.shortTermMissions.push(stabilityMission);
+    logger.info(`[CoreMissions] Short-term mission initialized: ${stabilityMission.name}`);
   }
 
   private generateId(prefix: string): string {
@@ -470,6 +514,119 @@ class CoreMissionsEngine {
     }
 
     return health as Record<MissionId, { status: 'healthy' | 'warning' | 'critical'; proxies: MissionProxyResult[] }>;
+  }
+
+  getShortTermMissions(): ShortTermMission[] {
+    return [...this.shortTermMissions];
+  }
+
+  getActiveShortTermMission(): ShortTermMission | null {
+    return this.shortTermMissions.find(m => m.status === 'active') || null;
+  }
+
+  updateShortTermMission(cycle: number, metricValue: number, anomalyScore: number): {
+    mission: ShortTermMission;
+    progress: number;
+    daysRemaining: number;
+    onTrack: boolean;
+    pressure: 'none' | 'low' | 'medium' | 'high';
+  } | null {
+    const mission = this.getActiveShortTermMission();
+    if (!mission) return null;
+
+    const now = new Date();
+    const deadline = new Date(mission.deadline);
+    const started = new Date(mission.startedAt);
+    
+    mission.currentValue = metricValue;
+    mission.checkpoints.push({
+      cycle,
+      value: metricValue,
+      timestamp: now.toISOString(),
+    });
+
+    if (mission.checkpoints.length > 1000) {
+      mission.checkpoints = mission.checkpoints.slice(-500);
+    }
+
+    const totalDays = (deadline.getTime() - started.getTime()) / (1000 * 60 * 60 * 24);
+    const elapsedDays = (now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24);
+    const daysRemaining = Math.max(0, (deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const progress = Math.min(100, (elapsedDays / totalDays) * 100);
+
+    let onTrack = false;
+    if (mission.direction === 'maintain') {
+      onTrack = metricValue >= mission.targetValue && anomalyScore <= 50;
+    } else if (mission.direction === 'increase') {
+      onTrack = metricValue >= mission.targetValue;
+    } else {
+      onTrack = metricValue <= mission.targetValue;
+    }
+
+    let pressure: 'none' | 'low' | 'medium' | 'high' = 'none';
+    if (!onTrack) {
+      if (daysRemaining < 1) pressure = 'high';
+      else if (daysRemaining < 3) pressure = 'medium';
+      else pressure = 'low';
+    }
+
+    if (now >= deadline) {
+      const recentCheckpoints = mission.checkpoints.slice(-144);
+      const failedCheckpoints = recentCheckpoints.filter(cp => {
+        return mission.direction === 'maintain' 
+          ? cp.value < mission.targetValue 
+          : mission.direction === 'increase' 
+            ? cp.value < mission.targetValue 
+            : cp.value > mission.targetValue;
+      });
+
+      if (failedCheckpoints.length < recentCheckpoints.length * 0.1) {
+        mission.status = 'completed';
+        logger.info(`[CoreMissions] Short-term mission COMPLETED: ${mission.name}`);
+      } else {
+        mission.status = 'failed';
+        logger.warn(`[CoreMissions] Short-term mission FAILED: ${mission.name}`);
+      }
+    }
+
+    return { mission, progress, daysRemaining, onTrack, pressure };
+  }
+
+  getShortTermMissionPressure(): { 
+    hasActiveMission: boolean; 
+    pressure: 'none' | 'low' | 'medium' | 'high';
+    gapFromTarget: number;
+    description: string;
+  } {
+    const mission = this.getActiveShortTermMission();
+    if (!mission) {
+      return { hasActiveMission: false, pressure: 'none', gapFromTarget: 0, description: 'No active short-term mission' };
+    }
+
+    let gap = 0;
+    if (mission.direction === 'maintain' || mission.direction === 'increase') {
+      gap = Math.max(0, mission.targetValue - mission.currentValue);
+    } else {
+      gap = Math.max(0, mission.currentValue - mission.targetValue);
+    }
+
+    const now = new Date();
+    const deadline = new Date(mission.deadline);
+    const daysRemaining = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+    let pressure: 'none' | 'low' | 'medium' | 'high' = 'none';
+    if (gap > 0) {
+      if (daysRemaining < 1) pressure = 'high';
+      else if (daysRemaining < 3) pressure = 'medium';
+      else pressure = 'low';
+    }
+
+    return {
+      hasActiveMission: true,
+      pressure,
+      gapFromTarget: gap,
+      description: `${mission.name}: ${mission.currentValue}/${mission.targetValue} (${Math.round(daysRemaining)} days left)`,
+    };
   }
 
   exportStatus(): {
