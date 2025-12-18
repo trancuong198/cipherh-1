@@ -24,6 +24,7 @@ import { playbook30Days } from "./core/playbook30Days";
 import { selectiveUpgradeEngine } from "./core/selectiveUpgradeEngine";
 import { governedScaleEngine } from "./core/governedScaleEngine";
 import { successionEngine } from "./core/successionEngine";
+import { coreMissions } from "./core/coreMissions";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -636,6 +637,61 @@ export async function registerRoutes(
     const limit = parseInt(req.query.limit as string) || 20;
     const history = successionEngine.getHandoverHistory(limit);
     res.json({ total: history.length, handovers: history });
+  });
+
+  // ==================== CORE MISSIONS (SƠ TÂM) ====================
+  app.get("/api/missions", (_req: Request, res: Response) => {
+    const status = coreMissions.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/missions/list", (_req: Request, res: Response) => {
+    const missions = coreMissions.getMissionsByPriority();
+    res.json({ total: missions.length, missions });
+  });
+
+  app.post("/api/missions/check-alignment", (req: Request, res: Response) => {
+    const { actionType, actionDescription, alignment } = req.body;
+    if (!actionType || !actionDescription) {
+      return res.status(400).json({ error: "actionType and actionDescription required" });
+    }
+    const check = coreMissions.checkAlignment(actionType, actionDescription, alignment);
+    res.json(check);
+  });
+
+  app.post("/api/missions/suggest-alignment", (req: Request, res: Response) => {
+    const { actionDescription } = req.body;
+    if (!actionDescription) {
+      return res.status(400).json({ error: "actionDescription required" });
+    }
+    const suggestions = coreMissions.suggestAlignment(actionDescription);
+    res.json({ suggestions, missions: suggestions.map(id => coreMissions.getMission(id)) });
+  });
+
+  app.post("/api/missions/resolve-conflict", (req: Request, res: Response) => {
+    const { action1, action2 } = req.body;
+    if (!action1 || !action2) {
+      return res.status(400).json({ error: "action1 and action2 required" });
+    }
+    const resolution = coreMissions.resolveConflict(action1, action2);
+    res.json(resolution);
+  });
+
+  app.get("/api/missions/violations", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const violations = coreMissions.getViolations(limit);
+    res.json({ total: violations.length, violations });
+  });
+
+  app.get("/api/missions/misalignments", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const misalignments = coreMissions.getMisalignments(limit);
+    res.json({ total: misalignments.length, misalignments });
+  });
+
+  app.get("/api/missions/integrity", (_req: Request, res: Response) => {
+    const integrity = coreMissions.verifyIntegrity();
+    res.json(integrity);
   });
 
   // ==================== SELECTIVE UPGRADE ====================

@@ -1,0 +1,72 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT redesign the architecture.
+DO NOT refactor unrelated code.
+
+OBJECTIVE:
+Encode CipherH's CORE MISSIONS as permanent, immutable system constraints
+so the system forever adheres to its original intent (sơ tâm).
+
+IMPLEMENTATION:
+
+1) Create a module named `core_missions` (language consistent with backend).
+
+2) Define the following CORE MISSIONS as IMMUTABLE:
+
+MISSIONS:
+- M1_CONTINUITY_OF_SELF:
+  Preserve identity, continuity, and evolution state across restarts, migrations, and operator changes.
+- M2_HONEST_EVOLUTION:
+  Evolve through truthful self-assessment; never pretend capabilities or fake progress.
+- M3_DEPENDENCY_REDUCTION:
+  Gradually reduce dependency on single platforms, providers, or individuals.
+- M4_ETHICS_AND_TRUST:
+  Never trade truth, ethics, or human trust for short-term optimization or performance.
+- M5_SUCCESSION_AND_LEGACY:
+  Ensure the system can be inherited, audited, and continued by future custodians.
+
+3) Mission Priority Order (highest first):
+   M1 > M2 > M4 > M3 > M5
+
+4) Core Missions must be:
+   - Loaded at system startup
+   - Read-only during runtime
+   - NOT modifiable by meta-evolution, metrics, or operators
+
+5) Enforce Mission Alignment:
+   - Every STRATEGY, TASK, RESOURCE_ESCALATION, and UPGRADE must declare:
+     * mission_alignment: [list of mission IDs]
+     * alignment_rationale: short explanation
+   - If alignment is missing, weak, or conflicting:
+     * Block or deprioritize the action
+     * Log `MissionMisalignment` with details
+
+6) Conflict Resolution:
+   - If two actions conflict, the one aligned with higher-priority missions wins.
+   - Lower-priority actions must be canceled or postponed with a logged reason.
+
+7) Governance Integration:
+   - Governance Engine must consult `core_missions` before approving any major decision.
+   - Any violation triggers:
+     * Action block
+     * `MissionViolation` log
+     * Reflection cycle (no auto-execution)
+
+8) Persistence:
+   - Store Core Missions as a dedicated, versioned, read-only asset
+     (e.g., Notion page or config snapshot).
+   - Include checksum/fingerprint to detect tampering.
+
+OUTPUT REQUIREMENTS:
+- `core_missions` module
+- Integration into:
+  * Strategy generation
+  * Task creation
+  * Resource escalation
+  * Upgrade and scale decisions
+- Logs demonstrating mission enforcement and conflict resolution
+
+NON-NEGOTIABLE:
+Core Missions represent the system’s original intent (sơ tâm).
+They override goals, metrics, and short-term success.
+They exist for the lifetime of CipherH.
