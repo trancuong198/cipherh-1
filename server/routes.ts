@@ -12,6 +12,7 @@ import { desireEngine } from "./core/desireEngine";
 import { identityCore } from "./core/identityCore";
 import { continuityEngine } from "./core/continuityEngine";
 import { resourceEscalationEngine } from "./core/resourceEscalationEngine";
+import { governanceEngine } from "./core/governanceEngine";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -254,6 +255,53 @@ export async function registerRoutes(
     res.json({
       success,
       message: success ? `Proposal ${status}` : "Proposal not found",
+    });
+  });
+
+  // ==================== GOVERNANCE ENGINE ====================
+  app.get("/api/core/governance", (_req: Request, res: Response) => {
+    const status = governanceEngine.exportStatus();
+    const rules = governanceEngine.getRules();
+    
+    res.json({
+      status,
+      rules: rules.map(r => ({ id: r.id, name: r.name, severity: r.severity, enabled: r.enabled })),
+      conservativeMode: governanceEngine.isConservativeModeActive(),
+    });
+  });
+
+  app.get("/api/core/governance/violations", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const violations = governanceEngine.getViolations(limit);
+    const critical = governanceEngine.getCriticalViolations();
+    
+    res.json({
+      total: violations.length,
+      critical: critical.length,
+      violations,
+    });
+  });
+
+  app.post("/api/core/governance/check", async (req: Request, res: Response) => {
+    const { decisionType, content } = req.body;
+    
+    if (!decisionType || !content) {
+      res.status(400).json({ success: false, error: "Missing decisionType or content" });
+      return;
+    }
+    
+    const result = await governanceEngine.checkDecision(decisionType, content, true);
+    res.json({
+      success: true,
+      result,
+    });
+  });
+
+  app.get("/api/core/governance/reality-check", (_req: Request, res: Response) => {
+    const result = governanceEngine.performRealityCheck();
+    res.json({
+      success: true,
+      result,
     });
   });
 
@@ -641,6 +689,13 @@ export async function registerRoutes(
         active_triggers: resourceEscalationEngine.exportStatus().activeTriggers,
         in_cooldown: resourceEscalationEngine.exportStatus().inCooldown,
         total_proposals: resourceEscalationEngine.exportStatus().totalProposals,
+      },
+      governance: {
+        total_checks: governanceEngine.exportStatus().totalChecks,
+        total_violations: governanceEngine.exportStatus().totalViolations,
+        total_blocked: governanceEngine.exportStatus().totalBlocked,
+        conservative_mode: governanceEngine.exportStatus().conservativeMode,
+        recent_violations: governanceEngine.exportStatus().recentViolations,
       },
       health: {
         status: stateExport.self_assessment.status,

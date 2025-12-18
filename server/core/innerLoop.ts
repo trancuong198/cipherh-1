@@ -11,6 +11,7 @@ import { memoryDistiller } from "./memoryDistiller";
 import { desireEngine, Desire } from "./desireEngine";
 import { identityCore, IdentityDriftWarning } from "./identityCore";
 import { resourceEscalationEngine, UpgradeProposal } from "./resourceEscalationEngine";
+import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -35,6 +36,11 @@ export interface InnerLoopResult {
   escalation?: {
     triggered: boolean;
     proposal: UpgradeProposal | null;
+  };
+  governance?: {
+    checksPerformed: number;
+    violationsBlocked: number;
+    conservativeMode: boolean;
   };
   error?: string;
 }
@@ -223,20 +229,34 @@ export class InnerLoop {
         const strategyPrompt = strategist.generateStrategyPrompt(stateExport, analysisResult);
         console.log(`Strategy prompt generated (${strategyPrompt.length} chars)`);
 
-        // Try to call OpenAI if available
-        if (openAIService.isConfigured()) {
-          console.log("Calling OpenAI for strategic analysis...");
-          try {
-            const aiResponse = await openAIService.analyzeStrategy(strategyPrompt);
-            if (aiResponse) {
-              strategist.integrateOpenAIResponse(aiResponse);
-              console.log("OpenAI response integrated");
-            }
-          } catch (aiError) {
-            console.log("OpenAI call failed, continuing in placeholder mode");
-          }
+        // GOVERNANCE CHECK: Validate strategy before execution
+        const strategyCheck = await governanceEngine.checkDecision('strategy', strategyPrompt);
+        if (!strategyCheck.approved) {
+          console.warn(`[GOVERNANCE] Strategy blocked: ${strategyCheck.recommendation}`);
+          const reflection = governanceEngine.forceReflection('Strategy failed governance check');
+          console.log(reflection);
         } else {
-          console.log("OpenAI integration: placeholder mode (not configured)");
+          // Try to call OpenAI if available
+          if (openAIService.isConfigured()) {
+            console.log("Calling OpenAI for strategic analysis...");
+            try {
+              const aiResponse = await openAIService.analyzeStrategy(strategyPrompt);
+              if (aiResponse) {
+                // GOVERNANCE CHECK: Validate AI response
+                const aiCheck = await governanceEngine.checkDecision('strategy', aiResponse);
+                if (aiCheck.approved) {
+                  strategist.integrateOpenAIResponse(aiResponse);
+                  console.log("OpenAI response integrated");
+                } else {
+                  console.warn('[GOVERNANCE] AI response blocked - unsafe content detected');
+                }
+              }
+            } catch (aiError) {
+              console.log("OpenAI call failed, continuing in placeholder mode");
+            }
+          } else {
+            console.log("OpenAI integration: placeholder mode (not configured)");
+          }
         }
       } catch (error) {
         console.error(`Error generating strategy: ${error}`);
@@ -321,16 +341,26 @@ export class InnerLoop {
         const selfScore = stateExport.self_assessment.overall_score;
         const insights = suggestedQuestions.slice(0, 3);
         
-        evolutionEntry = await evolutionKernel.evolve({
-          cycleCount: cycle,
-          selfScore,
-          anomalyScore,
-          insights
-        });
+        // GOVERNANCE CHECK: Validate evolution intent
+        const evolutionContent = `Evolution cycle ${cycle}: score=${selfScore}, insights=${insights.join('; ')}`;
+        const evolutionCheck = await governanceEngine.checkDecision('evolution', evolutionContent, true);
         
-        const evolutionState = evolutionKernel.getState();
-        console.log(`Evolution complete: ${evolutionState.version} (${evolutionState.mode})`);
-        console.log(`Improvements: ${evolutionEntry.improvements.join(', ')}`);
+        if (!evolutionCheck.approved) {
+          console.warn(`[GOVERNANCE] Evolution blocked: ${evolutionCheck.recommendation}`);
+          const reflection = governanceEngine.forceReflection('Evolution failed governance/reality check');
+          console.log(reflection);
+        } else {
+          evolutionEntry = await evolutionKernel.evolve({
+            cycleCount: cycle,
+            selfScore,
+            anomalyScore,
+            insights
+          });
+          
+          const evolutionState = evolutionKernel.getState();
+          console.log(`Evolution complete: ${evolutionState.version} (${evolutionState.mode})`);
+          console.log(`Improvements: ${evolutionEntry.improvements.join(', ')}`);
+        }
       } catch (error) {
         console.error(`Error in Evolution Kernel: ${error}`);
       }
@@ -355,13 +385,26 @@ export class InnerLoop {
       console.log("Step 9.6: Evaluating resource escalation...");
       let escalationResult = { triggered: false, proposal: null as UpgradeProposal | null };
       try {
-        const proposal = await resourceEscalationEngine.generateProposal(cycle);
-        if (proposal) {
-          escalationResult = { triggered: true, proposal };
-          console.log(`UPGRADE_PROPOSAL: ${proposal.proposedUpgrade.specificRequest}`);
-          console.log(`Bottleneck: ${proposal.currentBottleneck.description}`);
+        // GOVERNANCE CHECK: Verify escalation is allowed
+        const escalationCheck = await governanceEngine.checkDecision('escalation', `Resource escalation request cycle ${cycle}`);
+        
+        if (!escalationCheck.approved) {
+          console.warn(`[GOVERNANCE] Escalation blocked: ${escalationCheck.recommendation}`);
         } else {
-          console.log("No escalation needed or in cooldown");
+          const proposal = await resourceEscalationEngine.generateProposal(cycle);
+          if (proposal) {
+            // GOVERNANCE CHECK: Validate proposal content
+            const proposalCheck = await governanceEngine.checkDecision('escalation', proposal.proposedUpgrade.specificRequest);
+            if (proposalCheck.approved) {
+              escalationResult = { triggered: true, proposal };
+              console.log(`UPGRADE_PROPOSAL: ${proposal.proposedUpgrade.specificRequest}`);
+              console.log(`Bottleneck: ${proposal.currentBottleneck.description}`);
+            } else {
+              console.warn('[GOVERNANCE] Proposal content blocked');
+            }
+          } else {
+            console.log("No escalation needed or in cooldown");
+          }
         }
       } catch (error) {
         console.error(`Error in Resource Escalation: ${error}`);
