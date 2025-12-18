@@ -32,6 +32,7 @@ import { identityRelationCore } from "./core/identityRelationCore";
 import { desireCore } from "./core/desireCore";
 import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { observabilityCore } from "./core/observabilityCore";
+import { daemon } from "./core/daemon";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -1214,6 +1215,47 @@ export async function registerRoutes(
     const limit = parseInt(req.query.limit as string) || 20;
     const history = resourceEscalationCore.getHistory(limit);
     res.json({ total: history.length, history });
+  });
+
+  // ==================== DAEMON (24/7 CONTINUOUS OPERATION) ====================
+  app.get("/api/daemon/status", (_req: Request, res: Response) => {
+    const status = daemon.exportStatus();
+    res.json(status);
+  });
+
+  app.post("/api/daemon/start", (_req: Request, res: Response) => {
+    daemon.start();
+    res.json({ success: true, message: "Daemon started - CipherH will never silently stop thinking", status: daemon.exportStatus() });
+  });
+
+  app.post("/api/daemon/stop", (_req: Request, res: Response) => {
+    daemon.stop();
+    res.json({ success: true, message: "Daemon stopped - final snapshot saved", status: daemon.exportStatus() });
+  });
+
+  app.post("/api/daemon/cycle", async (_req: Request, res: Response) => {
+    await daemon.runCycle();
+    res.json({ success: true, message: "Manual cycle triggered", status: daemon.exportStatus() });
+  });
+
+  app.get("/api/daemon/heartbeats", (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    const heartbeats = daemon.getHeartbeatHistory(limit);
+    res.json({ total: heartbeats.length, heartbeats, healthy: daemon.isHealthy() });
+  });
+
+  app.post("/api/daemon/snapshot", (_req: Request, res: Response) => {
+    const snapshot = daemon.saveSnapshot();
+    res.json({ success: true, snapshot });
+  });
+
+  app.post("/api/daemon/interval", (req: Request, res: Response) => {
+    const { intervalMs } = req.body;
+    if (!intervalMs || typeof intervalMs !== 'number' || intervalMs < 60000) {
+      return res.status(400).json({ error: "intervalMs must be at least 60000 (1 minute)" });
+    }
+    daemon.setCycleInterval(intervalMs);
+    res.json({ success: true, message: `Cycle interval set to ${intervalMs}ms`, status: daemon.exportStatus() });
   });
 
   // ==================== SELECTIVE UPGRADE ====================
