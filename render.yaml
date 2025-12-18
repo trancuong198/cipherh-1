@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cipherh
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GITHUB_TOKEN
+        sync: false
+    autoDeploy: true
