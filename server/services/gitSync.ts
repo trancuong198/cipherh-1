@@ -75,7 +75,12 @@ export class GitSyncService {
         changes,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      let errorMessage = error instanceof Error ? error.message : String(error);
+      // Mask token in error messages for security
+      const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN || process.env.GITHUB_TOKEN || "";
+      if (token) {
+        errorMessage = errorMessage.replace(new RegExp(token, "g"), "***TOKEN***");
+      }
       console.error("Git sync failed", errorMessage);
 
       this.isSyncing = false;
