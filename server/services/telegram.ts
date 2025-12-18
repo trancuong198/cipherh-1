@@ -1,8 +1,8 @@
 import { logger } from './logger';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
-const OWNER_CHAT_ID = process.env.TELEGRAM_OWNER_CHAT_ID || '';
+const OWNER_CHAT_ID = (process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
 
 let isPolling = false;
 
@@ -11,6 +11,8 @@ export async function initTelegram(): Promise<boolean> {
     logger.warn('[Telegram] No TELEGRAM_BOT_TOKEN found - notifications disabled');
     return false;
   }
+
+  logger.info(`[Telegram] Token length: ${TELEGRAM_BOT_TOKEN.length}, starts with: ${TELEGRAM_BOT_TOKEN.substring(0, 10)}...`);
 
   try {
     await fetch(`${TELEGRAM_API_URL}/deleteWebhook`);
@@ -23,7 +25,7 @@ export async function initTelegram(): Promise<boolean> {
       startPolling();
       return true;
     } else {
-      logger.error(`[Telegram] Failed to connect: ${data.description}`);
+      logger.error(`[Telegram] Failed to connect: ${JSON.stringify(data)}`);
       return false;
     }
   } catch (error) {
