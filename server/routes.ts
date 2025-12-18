@@ -9,6 +9,7 @@ import { memoryBridge } from "./core/memory";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
+import { initTelegram, getTelegramStatus, notifySoulLoopComplete } from "./services/telegram";
 
 // Cron job reference
 let cronJob: cron.ScheduledTask | null = null;
@@ -18,8 +19,16 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Initialize Telegram bot
+  initTelegram().then((connected) => {
+    if (connected) {
+      logger.info("Telegram bot initialized successfully");
+    }
+  });
+
   // ==================== HEALTH CHECK ====================
   app.get("/api/health", (_req: Request, res: Response) => {
+    const telegramStatus = getTelegramStatus();
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -28,6 +37,7 @@ export async function registerRoutes(
         inner_loop: innerLoop.getStatus().is_running ? "running" : "idle",
         openai: openAIService.isConfigured() ? "configured" : "placeholder",
         notion: memoryBridge.isConnected() ? "connected" : "placeholder",
+        telegram: telegramStatus.connected ? "connected" : "not configured",
       },
     });
   });
@@ -252,7 +262,13 @@ export async function registerRoutes(
     res.json({
       openai: openAIService.getStatus(),
       notion: memoryBridge.getConnectionStatus(),
+      telegram: getTelegramStatus(),
     });
+  });
+
+  // ==================== TELEGRAM STATUS ====================
+  app.get("/api/telegram/status", (_req: Request, res: Response) => {
+    res.json(getTelegramStatus());
   });
 
   // ==================== ASK AI ====================
@@ -311,6 +327,7 @@ export async function registerRoutes(
       services: {
         openai: openAIService.isConfigured(),
         notion: memoryBridge.isConnected(),
+        telegram: getTelegramStatus().connected,
         scheduler: cronJob !== null,
       },
       goals: soulState.goalsLongTerm,
