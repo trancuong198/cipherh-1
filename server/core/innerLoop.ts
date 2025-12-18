@@ -7,6 +7,7 @@ import { strategist, WeeklyTask } from "./strategist";
 import { memoryBridge } from "./memory";
 import { openAIService } from "../services/openai";
 import { evolutionKernel, EvolutionLogEntry } from "./evolutionKernel";
+import { memoryDistiller } from "./memoryDistiller";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -242,6 +243,32 @@ export class InnerLoop {
         }
       } catch (error) {
         console.error(`Error writing weekly tasks: ${error}`);
+      }
+
+      // 8.5: Feed raw memories to distiller
+      try {
+        memoryDistiller.addRawMemory(reflection, "reflection");
+        if (daySummary) {
+          memoryDistiller.addRawMemory(daySummary, "log");
+        }
+        for (const q of suggestedQuestions.slice(0, 3)) {
+          memoryDistiller.addRawMemory(q, "reflection");
+        }
+        if (weeklyTasks.length > 0) {
+          memoryDistiller.addRawMemory(
+            `Strategy: ${weeklyTasks.map(t => t.task).join("; ")}`,
+            "strategy"
+          );
+        }
+
+        // Run distillation every 5 cycles
+        if (cycle % 5 === 0) {
+          console.log("Running memory distillation...");
+          const distillResult = await memoryDistiller.runDistillation();
+          console.log(`Distillation: kept ${distillResult.kept}, discarded ${distillResult.discarded}`);
+        }
+      } catch (error) {
+        console.error(`Error in memory distillation: ${error}`);
       }
 
       // ===== STEP 9: Evolution Kernel =====

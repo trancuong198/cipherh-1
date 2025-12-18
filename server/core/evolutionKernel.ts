@@ -5,6 +5,7 @@
 import { logger } from '../services/logger';
 import { openAIService } from '../services/openai';
 import { memoryBridge } from './memory';
+import { memoryDistiller } from './memoryDistiller';
 
 export interface EvolutionState {
   version: string;
@@ -187,6 +188,10 @@ class EvolutionKernel {
     };
 
     // What am I currently capable of?
+    // Use distilled memory for context (never query full history)
+    const distilledContext = memoryDistiller.getDistilledContext();
+    const memoryStatus = memoryDistiller.exportStatus();
+
     questions.currentCapabilities = [
       `Reasoning clarity: ${capabilities.reasoningClarity}%`,
       `Language quality: ${capabilities.languageQuality}%`,
@@ -195,7 +200,10 @@ class EvolutionKernel {
       `10-step Soul Loop execution`,
       `Self-evaluation and scoring`,
       resources.openaiAvailable ? 'AI-powered strategic analysis' : 'Basic strategic analysis',
-      resources.notionAvailable ? 'Persistent memory storage' : 'Temporary memory only'
+      resources.notionAvailable ? 'Persistent memory storage' : 'Temporary memory only',
+      `Memory distillation: ${memoryStatus.memoryHealth}`,
+      `Core identity items: ${memoryStatus.coreIdentityCount}`,
+      `Active lessons: ${memoryStatus.activeLessonsCount}`
     ];
 
     // What am I missing to evolve further?

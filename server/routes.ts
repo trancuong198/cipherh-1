@@ -7,6 +7,7 @@ import { logAnalyzer } from "./core/analyzer";
 import { strategist } from "./core/strategist";
 import { memoryBridge } from "./core/memory";
 import { evolutionKernel } from "./core/evolutionKernel";
+import { memoryDistiller } from "./core/memoryDistiller";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
@@ -80,6 +81,47 @@ export async function registerRoutes(
       ...evolution,
       internalQuestions: questions,
       isComplete: evolutionKernel.isComplete(),
+    });
+  });
+
+  // ==================== MEMORY DISTILLATION ====================
+  app.get("/api/core/memory", (_req: Request, res: Response) => {
+    const status = memoryDistiller.exportStatus();
+    const coreIdentity = memoryDistiller.getCoreIdentity();
+    const activeLessons = memoryDistiller.getActiveLessons();
+    
+    res.json({
+      status,
+      coreIdentity,
+      activeLessons,
+      distilledContext: memoryDistiller.getDistilledContext(),
+    });
+  });
+
+  app.post("/api/core/memory/distill", async (_req: Request, res: Response) => {
+    try {
+      const result = await memoryDistiller.runDistillation();
+      res.json({
+        success: true,
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.get("/api/core/memory/recall", (req: Request, res: Response) => {
+    const context = (req.query.context as string) || "general";
+    const recalled = memoryDistiller.recall(context);
+    
+    res.json({
+      context,
+      recalled,
+      count: recalled.length,
     });
   });
 
@@ -330,6 +372,13 @@ export async function registerRoutes(
         evolution_count: evolution.evolutionCount,
         mode: evolution.mode,
         capabilities_score: evolution.capabilities.overallScore,
+      },
+      memory: {
+        health: memoryDistiller.exportStatus().memoryHealth,
+        core_identity_count: memoryDistiller.exportStatus().coreIdentityCount,
+        active_lessons_count: memoryDistiller.exportStatus().activeLessonsCount,
+        total_processed: memoryDistiller.exportStatus().totalProcessed,
+        total_discarded: memoryDistiller.exportStatus().totalDiscarded,
       },
       health: {
         status: stateExport.self_assessment.status,
