@@ -33,6 +33,7 @@ import { desireCore } from "./core/desireCore";
 import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { observabilityCore } from "./core/observabilityCore";
 import { daemon } from "./core/daemon";
+import { coreGoals } from "./core/coreGoals";
 import { questionGovernor } from "./core/questionGovernor";
 import { evolutionGovernanceCore } from "./core/evolutionGovernanceCore";
 import { autonomyLock } from "./core/autonomyLock";
@@ -1391,6 +1392,37 @@ export async function registerRoutes(
     const limit = parseInt(req.query.limit as string) || 20;
     const events = daemon.getRecoveryEvents(limit);
     res.json({ total: events.length, events });
+  });
+
+  // ==================== CORE GOALS ====================
+  app.get("/api/goals", (_req: Request, res: Response) => {
+    const status = coreGoals.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/goals/active", (_req: Request, res: Response) => {
+    const activeGoal = coreGoals.getActiveGoal();
+    const activeGoalId = coreGoals.getActiveGoalId();
+    res.json({
+      active_goal_id: activeGoalId,
+      goal: activeGoal,
+      has_active_goal: coreGoals.hasActiveGoal(),
+    });
+  });
+
+  app.post("/api/goals/progress", (req: Request, res: Response) => {
+    const { goal_id, progress, evidence } = req.body;
+    
+    if (!goal_id || typeof progress !== 'number') {
+      return res.status(400).json({ error: "goal_id and progress (number) are required" });
+    }
+
+    if (!coreGoals.isGoalAllowed(goal_id)) {
+      return res.status(403).json({ error: "Goal is not allowed or not safe" });
+    }
+
+    const result = coreGoals.updateProgress(goal_id, progress, evidence || []);
+    res.json(result);
   });
 
   app.get("/api/observability/snapshot", (req: Request, res: Response) => {

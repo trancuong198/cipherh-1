@@ -93,6 +93,14 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Auto-start daemon for 24/7 always-on operation
+      import('./core/daemon').then(({ daemon }) => {
+        daemon.start();
+        log('CipherH Daemon auto-started - 24/7 autonomous operation active', 'daemon');
+      }).catch((err) => {
+        log(`Failed to auto-start daemon: ${err.message}`, 'daemon');
+      });
     },
   );
 })();

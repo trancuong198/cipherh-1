@@ -6,6 +6,7 @@ import { realityCore } from './realityCore';
 import { desireCore } from './desireCore';
 import { governanceEngine } from './governanceEngine';
 import { measurementEngine } from './measurementEngine';
+import { coreGoals } from './coreGoals';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -555,10 +556,19 @@ class DaemonEngine {
     recoveryCount: number;
     lastRecovery: string | null;
     uptime: number;
+    loop_status: 'ACTIVE' | 'IDLE' | 'RUNNING';
+    active_goal_id: string | null;
   } {
     const uptime = this.state.startedAt 
       ? Date.now() - new Date(this.state.startedAt).getTime()
       : 0;
+
+    let loopStatus: 'ACTIVE' | 'IDLE' | 'RUNNING' = 'IDLE';
+    if (this.state.running) {
+      loopStatus = 'RUNNING';
+    } else if (this.state.enabled) {
+      loopStatus = 'ACTIVE';
+    }
 
     return {
       enabled: this.state.enabled,
@@ -575,6 +585,8 @@ class DaemonEngine {
       recoveryCount: this.state.recoveryCount,
       lastRecovery: this.state.lastRecovery,
       uptime,
+      loop_status: loopStatus,
+      active_goal_id: coreGoals.getActiveGoalId(),
     };
   }
 }

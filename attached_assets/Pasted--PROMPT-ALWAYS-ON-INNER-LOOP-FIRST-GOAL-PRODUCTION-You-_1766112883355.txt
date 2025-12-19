@@ -1,0 +1,111 @@
+🔒 PROMPT — ALWAYS-ON INNER LOOP + FIRST GOAL (PRODUCTION)
+
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT redesign architecture.
+DO NOT add narrative, emotions, or metaphysical claims.
+
+OBJECTIVE:
+Make CipherH run continuously (24/7) with a stable inner loop
+and eliminate the “no clear goal” condition by defining ONE valid core goal.
+
+IMPLEMENTATION:
+
+1) Always-On Inner Loop (Heartbeat)
+
+Ensure the inner loop runs automatically every 10 minutes.
+
+Use an internal scheduler (setInterval / cron-equivalent inside the app).
+
+The loop MUST:
+
+survive server restarts
+
+resume automatically on boot
+
+not require manual API calls or UI clicks
+
+Implementation rules:
+
+Initialize the scheduler at application startup.
+
+Guard against duplicate schedulers (singleton / lock).
+
+Log each tick as HeartbeatTick with timestamp and cycle id.
+
+2) Loop Execution Contract
+
+Each loop execution MUST:
+
+Run the full evaluation pipeline (governance → evolution → measurement).
+
+Write results to Notion if configured.
+
+Update dashboard state.
+
+Fail safely (no crash, log and continue next tick).
+
+3) Define ONE Core Goal (Allowed Goal)
+
+Create a single allowed goal to unblock evolution:
+
+GOAL_ID: CORE_STABILITY_001
+Description:
+
+Improve memory distillation quality.
+
+Reduce repetitive reasoning patterns.
+
+Increase autonomy score from 30 → 40 using measurable indicators only.
+
+Rules:
+
+This goal is non-financial.
+
+This goal requires no external permissions.
+
+This goal is always allowed by governance.
+
+This goal can be refined but not removed without human approval.
+
+Persist this goal in the existing goals/ideology system.
+
+4) Governance Alignment
+
+Mark CORE_STABILITY_001 as:
+
+allowed = true
+
+safe = true
+
+priority = baseline
+
+Prevent the “no clear goal” warning when this goal is active.
+
+5) Observability
+
+Expose or log clearly:
+
+Inner loop running status (ACTIVE / IDLE)
+
+Last heartbeat timestamp
+
+Total automatic cycles completed
+
+Current active goal id
+
+OUTPUT REQUIREMENTS:
+
+Inner loop runs automatically every 10 minutes.
+
+No manual trigger required.
+
+Dashboard no longer reports “no clear goal”.
+
+Logs show continuous operation across time.
+
+NON-NEGOTIABLE:
+CipherH must never appear idle due to missing goals or manual triggers.
+If resources are low, it slows down — it does not stop.
+
+Proceed to implement and commit.
