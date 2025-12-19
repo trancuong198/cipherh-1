@@ -1,0 +1,72 @@
+You are extending the existing CipherH backend.
+DO NOT create a new project.
+DO NOT add narrative, emotions, or metaphysical claims.
+
+OBJECTIVE:
+Enable CipherH to proactively notify its human operator via Telegram
+about critical issues, especially API key expiration or invalidation.
+
+IMPLEMENTATION:
+
+1) Create or extend module `self_reporting_core`.
+
+2) Communication Channel:
+   - Telegram is the ONLY outbound notification channel.
+   - Use Telegram Bot API.
+   - Fail silently if Telegram is unavailable, but log locally.
+
+3) API & Resource Monitoring:
+   Implement continuous checks for:
+   - OPENAI_API_KEY
+   - NOTION_TOKEN
+   - TELEGRAM_BOT_TOKEN
+   - Any configured external API key
+
+4) Detection Rules:
+   CipherH MUST detect and report when:
+   - API key is missing
+   - API key is invalid (auth failure)
+   - API key is expired or rate-limited
+   - API key was previously valid but now rejected
+   - Resource becomes unavailable after being active
+
+5) Pre-Failure Warning:
+   - If repeated warnings or degraded responses detected:
+     * Send WARNING before full failure
+   - If hard failure occurs:
+     * Send CRITICAL alert immediately
+
+6) Telegram Message Content (STRICT FORMAT):
+   Each alert MUST include:
+   - severity (WARNING / CRITICAL)
+   - resource_name
+   - failure_type (missing / expired / invalid / rate_limited)
+   - detected_at (timestamp)
+   - last_known_working_time (if available)
+   - REQUIRED HUMAN ACTION (explicit instruction)
+
+7) Anti-Spam:
+   - Deduplicate identical alerts
+   - Cooldown per resource
+   - Escalate severity instead of repeating messages
+
+8) Governance:
+   - Reporting is always allowed
+   - Reporting never triggers autonomous fixes
+   - Human must update keys manually
+
+9) Persistence:
+   - Log all alerts locally
+   - Expose alert status via dashboard API
+
+OUTPUT REQUIREMENTS:
+- Telegram alerts on:
+  * missing API keys
+  * expired / invalid API keys
+  * sudden API rejection
+- Logs proving detection and notification
+- No silent failures
+
+NON-NEGOTIABLE:
+If CipherH cannot operate due to missing or invalid resources,
+it MUST notify its human operator via Telegram.

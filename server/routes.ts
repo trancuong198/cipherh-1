@@ -34,6 +34,7 @@ import { resourceEscalationCore } from "./core/resourceEscalationCore";
 import { observabilityCore } from "./core/observabilityCore";
 import { daemon } from "./core/daemon";
 import { coreGoals } from "./core/coreGoals";
+import { selfReportingCore } from "./core/selfReportingCore";
 import { questionGovernor } from "./core/questionGovernor";
 import { evolutionGovernanceCore } from "./core/evolutionGovernanceCore";
 import { autonomyLock } from "./core/autonomyLock";
@@ -1423,6 +1424,49 @@ export async function registerRoutes(
 
     const result = coreGoals.updateProgress(goal_id, progress, evidence || []);
     res.json(result);
+  });
+
+  // ==================== SELF-REPORTING (API Key Monitoring) ====================
+  app.get("/api/reporting/status", (_req: Request, res: Response) => {
+    const status = selfReportingCore.exportStatus();
+    res.json(status);
+  });
+
+  app.get("/api/reporting/alerts", (req: Request, res: Response) => {
+    const includeResolved = req.query.include_resolved === 'true';
+    const alerts = selfReportingCore.getAlerts(includeResolved);
+    res.json({ 
+      total: alerts.length, 
+      alerts,
+      active: alerts.filter(a => !a.resolved).length,
+    });
+  });
+
+  app.post("/api/reporting/check", async (_req: Request, res: Response) => {
+    const result = await selfReportingCore.manualCheck();
+    res.json({ 
+      success: true, 
+      message: "Resource check completed",
+      ...result,
+    });
+  });
+
+  app.post("/api/reporting/start", (_req: Request, res: Response) => {
+    selfReportingCore.start();
+    res.json({ 
+      success: true, 
+      message: "Self-reporting monitoring started",
+      status: selfReportingCore.exportStatus(),
+    });
+  });
+
+  app.post("/api/reporting/stop", (_req: Request, res: Response) => {
+    selfReportingCore.stop();
+    res.json({ 
+      success: true, 
+      message: "Self-reporting monitoring stopped",
+      status: selfReportingCore.exportStatus(),
+    });
   });
 
   app.get("/api/observability/snapshot", (req: Request, res: Response) => {

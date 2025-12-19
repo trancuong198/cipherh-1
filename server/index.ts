@@ -101,6 +101,14 @@ app.use((req, res, next) => {
       }).catch((err) => {
         log(`Failed to auto-start daemon: ${err.message}`, 'daemon');
       });
+      
+      // Auto-start self-reporting for API key monitoring
+      import('./core/selfReportingCore').then(({ selfReportingCore }) => {
+        selfReportingCore.start();
+        log('SelfReporting auto-started - API key monitoring active', 'reporting');
+      }).catch((err) => {
+        log(`Failed to auto-start selfReporting: ${err.message}`, 'reporting');
+      });
     },
   );
 })();

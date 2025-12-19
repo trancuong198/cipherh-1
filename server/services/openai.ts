@@ -203,6 +203,24 @@ ${logsText}`;
       placeholder_mode: !this.configured,
     };
   }
+
+  async testConnection(): Promise<boolean> {
+    if (!this.configured || !this.client) {
+      return false;
+    }
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [{ role: "user", content: "ping" }],
+        max_completion_tokens: 5,
+      });
+      return !!response.choices[0];
+    } catch (error: any) {
+      console.error("OpenAI connection test failed:", error.message);
+      return false;
+    }
+  }
 }
 
 export const openAIService = new OpenAIService();
