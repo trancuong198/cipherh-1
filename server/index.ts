@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { config, logConfigStatus, isProduction } from "./config";
+import { logger } from "./services/logger";
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,17 +24,6 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -52,7 +43,7 @@ app.use((req, res, next) => {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
-      log(logLine);
+      logger.info(`[express] ${logLine}`);
     }
   });
 
@@ -73,7 +64,7 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  if (isProduction()) {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
@@ -84,30 +75,30 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
-      port,
+      port: config.port,
       host: "0.0.0.0",
       reusePort: true,
     },
     () => {
-      log(`serving on port ${port}`);
+      logConfigStatus();
+      logger.info(`[express] Serving on port ${config.port}`);
       
       // Auto-start daemon for 24/7 always-on operation
       import('./core/daemon').then(({ daemon }) => {
         daemon.start();
-        log('CipherH Daemon auto-started - 24/7 autonomous operation active', 'daemon');
+        logger.info('[daemon] CipherH Daemon auto-started - 24/7 autonomous operation active');
       }).catch((err) => {
-        log(`Failed to auto-start daemon: ${err.message}`, 'daemon');
+        logger.error(`[daemon] Failed to auto-start daemon: ${err.message}`);
       });
       
       // Auto-start self-reporting for API key monitoring
       import('./core/selfReportingCore').then(({ selfReportingCore }) => {
         selfReportingCore.start();
-        log('SelfReporting auto-started - API key monitoring active', 'reporting');
+        logger.info('[reporting] SelfReporting auto-started - API key monitoring active');
       }).catch((err) => {
-        log(`Failed to auto-start selfReporting: ${err.message}`, 'reporting');
+        logger.error(`[reporting] Failed to auto-start selfReporting: ${err.message}`);
       });
     },
   );
