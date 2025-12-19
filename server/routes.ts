@@ -42,7 +42,7 @@ import { willCommitmentCore } from "./core/willCommitmentCore";
 import { openAIService } from "./services/openai";
 import { logger } from "./services/logger";
 import { gitSync } from "./services/gitSync";
-import { initTelegram, getTelegramStatus, notifySoulLoopComplete } from "./services/telegram";
+import { initTelegram, getTelegramStatus, notifySoulLoopComplete, notifyOwner } from "./services/telegram";
 
 // Cron job reference
 let cronJob: cron.ScheduledTask | null = null;
@@ -1466,6 +1466,23 @@ export async function registerRoutes(
       success: true, 
       message: "Self-reporting monitoring stopped",
       status: selfReportingCore.exportStatus(),
+    });
+  });
+
+  app.post("/api/reporting/test-notify", async (_req: Request, res: Response) => {
+    const timestamp = new Date().toISOString();
+    const message = 
+      `[TEST] CipherH Self-Reporting System\n\n` +
+      `This is a proactive test notification.\n` +
+      `Time: ${timestamp}\n\n` +
+      `All systems are operational.\n` +
+      `CipherH is monitoring your API keys 24/7.`;
+    
+    const sent = await notifyOwner(message);
+    res.json({ 
+      success: sent, 
+      message: sent ? "Test notification sent to Telegram" : "Failed to send notification",
+      timestamp,
     });
   });
 
