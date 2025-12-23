@@ -1,32 +1,32 @@
 {
-  "id": "snap_1766142677875",
-  "timestamp": "2025-12-19T11:11:17.875Z",
-  "cycle": 5,
+  "id": "snap_1766151106209",
+  "timestamp": "2025-12-19T13:31:46.209Z",
+  "cycle": 30,
   "version": "2.0",
   "agency_state": {
-    "cycleCount": 5,
-    "confidence": 80,
+    "cycleCount": 30,
+    "confidence": 100,
     "doubts": 0,
     "energyLevel": 100,
     "mode": "idle",
     "currentFocus": null
   },
-  "autonomy_level": 44,
+  "autonomy_level": 50,
   "active_constraints": [],
   "reality_metrics_summary": {
-    "stabilityScore": 73,
-    "evolutionScore": 78,
-    "autonomyScore": 44,
+    "stabilityScore": 60,
+    "evolutionScore": 100,
+    "autonomyScore": 50,
     "consecutiveMismatches": 0
   },
   "behavior_pattern_hash": "56b4c9b1",
   "desire_state_summary": {
-    "totalDesires": 28,
+    "totalDesires": 178,
     "pendingDesires": 0,
     "blockedDesires": 0
   },
   "governance_state": {
     "conservativeMode": false
   },
-  "checksum": "49137f1a"
+  "checksum": "5bfcc32a"
 }
