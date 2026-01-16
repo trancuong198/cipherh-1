@@ -1,14 +1,14 @@
 import express from 'express';
 import { createServer } from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import cron, { ScheduledTask } from 'node-cron';
 import { runInnerLoop } from './core/innerLoop.js';
 import { getSoulState } from './core/soulState.js';
 import coreRoutes from './routes/core.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use process.cwd() for production builds
+const rootDir = process.cwd();
+const publicPath = path.join(rootDir, 'dist/public');
 
 const app = express();
 const server = createServer(app);
@@ -19,7 +19,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  const publicPath = path.join(__dirname, '../dist/public');
   app.use(express.static(publicPath));
 }
 
@@ -34,7 +33,7 @@ app.get('/api/health', (_req, res) => {
 // Serve client in production
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../dist/public/index.html'));
+    res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
 

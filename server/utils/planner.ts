@@ -88,7 +88,7 @@ Return JSON array:
       if (content) {
         const parsed = JSON.parse(content);
         const goals = Array.isArray(parsed) ? parsed : parsed.goals || [];
-        return goals.map(g => ({
+        return goals.map((g: any) => ({
           ...g,
           createdAt: new Date().toISOString(),
         }));

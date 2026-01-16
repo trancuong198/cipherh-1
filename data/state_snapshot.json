@@ -1,13 +1,13 @@
 {
   "id": "snap_1766151106209",
-  "timestamp": "2026-01-16T15:00:20.288Z",
-  "cycle": 34,
+  "timestamp": "2026-01-16T20:29:14.605Z",
+  "cycle": 36,
   "version": "2.0",
   "agency_state": {
-    "cycleCount": 34,
+    "cycleCount": 36,
     "confidence": 100,
     "doubts": 0,
-    "energyLevel": 80,
+    "energyLevel": 70,
     "mode": "idle",
     "currentFocus": null
   },
