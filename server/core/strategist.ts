@@ -1,6 +1,7 @@
 import { AnalysisResult } from './analyzer.js';
 import { SoulState } from './soulState.js';
 import { generateStrategy } from '../services/openai.js';
+import { randomUUID } from 'crypto';
 
 export interface Task {
   id: string;
@@ -34,7 +35,7 @@ export async function generateWeeklyTasks(
   // Generate tasks based on anomalies
   if (analysis.anomalies.length > 0) {
     tasks.push({
-      id: `task_${Date.now()}_1`,
+      id: `task_${randomUUID()}`,
       title: 'Investigate Anomalies',
       description: `Review and address detected anomalies: ${analysis.anomalies.join(', ')}`,
       priority: 'high',
@@ -47,7 +48,7 @@ export async function generateWeeklyTasks(
   // Generate tasks based on confidence
   if (state.agency_state.confidence < 50) {
     tasks.push({
-      id: `task_${Date.now()}_2`,
+      id: `task_${randomUUID()}`,
       title: 'Boost Confidence',
       description: 'Implement measures to improve system confidence',
       priority: 'medium',
@@ -59,7 +60,7 @@ export async function generateWeeklyTasks(
   
   // Regular maintenance task
   tasks.push({
-    id: `task_${Date.now()}_3`,
+    id: `task_${randomUUID()}`,
     title: 'System Optimization',
     description: 'Review and optimize system performance',
     priority: 'low',
@@ -79,7 +80,7 @@ export async function generateMonthlyPlan(
   
   // Long-term improvement task
   tasks.push({
-    id: `task_${Date.now()}_m1`,
+    id: `task_${randomUUID()}`,
     title: 'Evolution Assessment',
     description: 'Evaluate system evolution and progress towards goals',
     priority: 'medium',
@@ -91,7 +92,7 @@ export async function generateMonthlyPlan(
   // Strategic planning task
   if (state.reality_metrics_summary.evolutionScore < 80) {
     tasks.push({
-      id: `task_${Date.now()}_m2`,
+      id: `task_${randomUUID()}`,
       title: 'Evolution Enhancement',
       description: 'Develop strategies to improve evolution score',
       priority: 'high',
@@ -137,7 +138,7 @@ export async function createStrategy(
   }
   
   return {
-    id: `strategy_${Date.now()}`,
+    id: `strategy_${randomUUID()}`,
     title: `Strategy for Cycle ${state.cycle}`,
     description,
     actions,

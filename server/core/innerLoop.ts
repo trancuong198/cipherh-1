@@ -2,6 +2,7 @@ import { loadState, updateState, getSoulState, incrementCycle, updateConfidence,
 import { analyzeLogs, AnalysisResult } from './analyzer.js';
 import { generateWeeklyTasks, generateMonthlyPlan, createStrategy, Strategy } from './strategist.js';
 import { writeLesson, writeStrategy, writeDailySummary } from './memory.js';
+import { randomUUID } from 'crypto';
 
 export interface InnerLoopResult {
   success: boolean;
@@ -122,7 +123,7 @@ async function performReflection(state: SoulState, analysis: AnalysisResult): Pr
 }
 
 async function updateStateFromAnalysis(state: SoulState, analysis: AnalysisResult): Promise<SoulState> {
-  const updates: any = {
+  const updates: Partial<SoulState> = {
     agency_state: {
       ...state.agency_state,
       mode: 'learning' as const,
