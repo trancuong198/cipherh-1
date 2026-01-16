@@ -98,6 +98,10 @@ Expected response for health check:
 ## 🔧 Troubleshooting
 
 ### Build Fails
+
+**Problem:** `tsx: not found` or `vite: not found` error during build
+**Solution:** Build dependencies (tsx, vite, esbuild, typescript) are now in `dependencies` instead of `devDependencies` to ensure they're available during Render's build process.
+
 **Problem:** Dependencies not installing
 **Solution:** Check `package.json` is committed and valid
 
