@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { runInnerLoop } from './core/innerLoop.js';
 import { getSoulState } from './core/soulState.js';
 import coreRoutes from './routes/core.js';
@@ -42,7 +42,7 @@ const PORT = process.env.PORT || 3000;
 
 // Schedule Inner Loop to run every 10 minutes
 const cronSchedule = process.env.HEARTBEAT_CRON || '*/10 * * * *';
-let cronJob: cron.ScheduledTask | null = null;
+let cronJob: ScheduledTask | null = null;
 
 async function startScheduler() {
   if (cronJob) {
