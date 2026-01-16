@@ -1,6 +1,6 @@
-import { loadState, updateState, getSoulState, incrementCycle, updateConfidence, updateEnergy } from './soulState.js';
-import { analyzeLogs } from './analyzer.js';
-import { generateWeeklyTasks, generateMonthlyPlan, createStrategy } from './strategist.js';
+import { loadState, updateState, getSoulState, incrementCycle, updateConfidence, updateEnergy, SoulState } from './soulState.js';
+import { analyzeLogs, AnalysisResult } from './analyzer.js';
+import { generateWeeklyTasks, generateMonthlyPlan, createStrategy, Strategy } from './strategist.js';
 import { writeLesson, writeStrategy, writeDailySummary } from './memory.js';
 
 export interface InnerLoopResult {
@@ -62,8 +62,8 @@ export async function runInnerLoop(): Promise<InnerLoopResult> {
     console.log(`Performance evaluation: ${evaluation.score}/100`);
     
     // Update state with evaluation
-    state = await updateConfidence(state, evaluation.confidenceDelta);
-    state = await updateEnergy(state, evaluation.energyDelta);
+    state = updateConfidence(state, evaluation.confidenceDelta);
+    state = updateEnergy(state, evaluation.energyDelta);
     
     // Step 10: Prepare for next cycle
     console.log('Step 10/10: Preparing for next cycle...');
@@ -97,7 +97,7 @@ export async function runInnerLoop(): Promise<InnerLoopResult> {
   }
 }
 
-async function performReflection(state: any, analysis: any): Promise<string> {
+async function performReflection(state: SoulState, analysis: AnalysisResult): Promise<string> {
   const reflections: string[] = [];
   
   if (analysis.anomalies.length > 0) {
@@ -121,7 +121,7 @@ async function performReflection(state: any, analysis: any): Promise<string> {
   return reflections.join(' ');
 }
 
-async function updateStateFromAnalysis(state: any, analysis: any): Promise<any> {
+async function updateStateFromAnalysis(state: SoulState, analysis: AnalysisResult): Promise<SoulState> {
   const updates: any = {
     agency_state: {
       ...state.agency_state,
@@ -139,7 +139,7 @@ async function updateStateFromAnalysis(state: any, analysis: any): Promise<any> 
   return await updateState(updates);
 }
 
-async function writeMemories(state: any, analysis: any, strategy: any): Promise<void> {
+async function writeMemories(state: SoulState, analysis: AnalysisResult, strategy: Strategy): Promise<void> {
   try {
     // Write lesson if there are insights
     if (analysis.insights.length > 0) {
@@ -170,7 +170,7 @@ interface PerformanceEvaluation {
   energyDelta: number;
 }
 
-async function evaluatePerformance(state: any, analysis: any): Promise<PerformanceEvaluation> {
+async function evaluatePerformance(state: SoulState, analysis: AnalysisResult): Promise<PerformanceEvaluation> {
   let score = 50; // Base score
   let confidenceDelta = 0;
   let energyDelta = -5; // Each cycle costs some energy

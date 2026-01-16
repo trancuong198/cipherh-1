@@ -63,7 +63,7 @@ Format your response as JSON:
         },
       ],
       temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.7'),
-      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || '500'),
+      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || '500', 10),
     });
     
     const content = response.choices[0]?.message?.content;

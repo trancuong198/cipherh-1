@@ -1,9 +1,9 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = join(__filename, '../..');
+const __dirname = dirname(__filename);
 
 export interface SoulState {
   id: string;
