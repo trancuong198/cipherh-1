@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Cpu,
@@ -207,6 +208,21 @@ export default function Dashboard() {
             </div>
           </div>
         </header>
+
+        <Tabs defaultValue="cipher1" className="w-full">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-6 bg-[#121828] border border-cyan-500/20">
+            <TabsTrigger value="cipher1" className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
+              Cipher 1
+            </TabsTrigger>
+            <TabsTrigger value="cipher2" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+              Cipher 2
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="cipher1" className="space-y-6">
+            <div className="text-center mb-4">
+              <Badge className="bg-cyan-600/20 text-cyan-400 border-cyan-500/50">Cipher Instance 1</Badge>
+            </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="bg-[#121828] border-cyan-500/20" data-testid="card-cycle-count">
@@ -498,9 +514,305 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+          </TabsContent>
+
+          <TabsContent value="cipher2" className="space-y-6">
+            <div className="text-center mb-4">
+              <Badge className="bg-purple-600/20 text-purple-400 border-purple-500/50">Cipher Instance 2</Badge>
+            </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-[#121828] border-cyan-500/20" data-testid="card-cycle-count">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">CYCLE COUNT</CardTitle>
+              <Cpu className="w-5 h-5 text-cyan-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-mono font-bold text-cyan-400" data-testid="text-cycle-value">
+                {overview?.cycle_count ?? 0}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Soul loop iterations</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#121828] border-purple-500/20" data-testid="card-confidence">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">CONFIDENCE</CardTitle>
+              <Shield className="w-5 h-5 text-purple-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-mono font-bold text-purple-400" data-testid="text-confidence-value">
+                {overview?.confidence ?? 75}%
+              </div>
+              <Progress value={overview?.confidence ?? 75} className="mt-2 h-1 bg-gray-700" />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#121828] border-yellow-500/20" data-testid="card-doubts">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">DOUBTS</CardTitle>
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-mono font-bold text-yellow-400" data-testid="text-doubts-value">
+                {overview?.doubts ?? 0}%
+              </div>
+              <Progress value={overview?.doubts ?? 0} className="mt-2 h-1 bg-gray-700" />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#121828] border-rose-500/20" data-testid="card-anomaly">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">ANOMALY SCORE</CardTitle>
+              <Zap className="w-5 h-5 text-rose-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-mono font-bold text-rose-400" data-testid="text-anomaly-value">
+                {overview?.anomaly_score?.toFixed(0) ?? 0}
+              </div>
+              <Progress
+                value={overview?.anomaly_score ?? 0}
+                className="mt-2 h-1 bg-gray-700"
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <Card className="bg-[#121828] border-gray-700 lg:col-span-2" data-testid="card-health">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-lg text-gray-300">System Health</CardTitle>
+              {getTrendIcon(health?.trend ?? "stable")}
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Status</p>
+                  <Badge
+                    variant="outline"
+                    className={`text-lg px-3 py-1 uppercase border-current ${getStatusColor(health?.status ?? "moderate")}`}
+                    data-testid="badge-health-status"
+                  >
+                    {health?.status ?? "UNKNOWN"}
+                  </Badge>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Overall Score</p>
+                  <span
+                    className={`text-2xl font-mono font-bold ${getStatusColor(health?.status ?? "moderate")}`}
+                    data-testid="text-health-score"
+                  >
+                    {health?.overall_score?.toFixed(1) ?? 0}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Trend</p>
+                  <span className="text-lg font-medium capitalize text-gray-300" data-testid="text-trend">
+                    {health?.trend ?? "Unknown"}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Mode</p>
+                  <Badge variant="secondary" className="uppercase" data-testid="badge-mode">
+                    {overview?.mode ?? "IDLE"}
+                  </Badge>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Energy</p>
+                  <span className="text-lg font-mono text-emerald-400" data-testid="text-energy">
+                    {overview?.energy_level ?? 100}%
+                  </span>
+                </div>
+              </div>
+
+              <Separator className="my-4 bg-gray-700" />
+
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Last Reflection</p>
+                <p className="text-sm text-gray-300 italic font-mono leading-relaxed" data-testid="text-reflection">
+                  {dashboard?.last_reflection || "No reflection yet..."}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#121828] border-gray-700" data-testid="card-services">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-300">Services Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">OpenAI</span>
+                <Badge
+                  variant="outline"
+                  className={services?.openai ? "border-emerald-500 text-emerald-400" : "border-gray-600 text-gray-500"}
+                  data-testid="badge-openai"
+                >
+                  {services?.openai ? (
+                    <>
+                      <CheckCircle className="w-3 h-3 mr-1" /> Active
+                    </>
+                  ) : (
+                    "Placeholder"
+                  )}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Notion</span>
+                <Badge
+                  variant="outline"
+                  className={services?.notion ? "border-emerald-500 text-emerald-400" : "border-gray-600 text-gray-500"}
+                  data-testid="badge-notion"
+                >
+                  {services?.notion ? (
+                    <>
+                      <CheckCircle className="w-3 h-3 mr-1" /> Connected
+                    </>
+                  ) : (
+                    "Placeholder"
+                  )}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Scheduler</span>
+                <Badge
+                  variant="outline"
+                  className={services?.scheduler ? "border-cyan-500 text-cyan-400" : "border-gray-600 text-gray-500"}
+                  data-testid="badge-scheduler"
+                >
+                  {services?.scheduler ? (
+                    <>
+                      <CircleDot className="w-3 h-3 mr-1 animate-pulse" /> Running
+                    </>
+                  ) : (
+                    "Stopped"
+                  )}
+                </Badge>
+              </div>
+
+              <Separator className="bg-gray-700" />
+
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Log Statistics</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <span className="text-gray-400">Total Logs:</span>
+                  <span className="text-gray-200 font-mono">{logs?.total ?? 0}</span>
+                  <span className="text-gray-400">Errors:</span>
+                  <span className="text-rose-400 font-mono">{logs?.by_level?.error ?? 0}</span>
+                  <span className="text-gray-400">Warnings:</span>
+                  <span className="text-yellow-400 font-mono">{logs?.by_level?.warn ?? 0}</span>
+                  <span className="text-gray-400">File Size:</span>
+                  <span className="text-gray-200 font-mono">{logs?.file_size_kb ?? 0} KB</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card className="bg-[#121828] border-gray-700" data-testid="card-goals">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-300 flex items-center gap-2">
+                <Target className="w-5 h-5 text-cyan-400" />
+                Active Goals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dashboard?.goals && dashboard.goals.length > 0 ? (
+                <ul className="space-y-2">
+                  {dashboard.goals.map((goal, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-gray-300">
+                      <CheckCircle className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                      <span className="font-mono leading-relaxed">{goal}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No active goals</p>
+              )}
+
+              {dashboard?.current_focus && (
+                <>
+                  <Separator className="my-4 bg-gray-700" />
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">Current Focus</p>
+                    <p className="text-sm text-purple-400 font-mono leading-relaxed">
+                      {dashboard.current_focus}
+                    </p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-[#121828] border-gray-700" data-testid="card-tasks-anomalies">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-300">Critical Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <p className="text-2xl font-mono font-bold text-cyan-400">{tasks?.total ?? 0}</p>
+                  <p className="text-xs text-gray-500">Total Tasks</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-mono font-bold text-rose-400">{tasks?.critical ?? 0}</p>
+                  <p className="text-xs text-gray-500">Critical</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-mono font-bold text-yellow-400">{tasks?.high ?? 0}</p>
+                  <p className="text-xs text-gray-500">High Priority</p>
+                </div>
+              </div>
+
+              <Separator className="bg-gray-700 mb-4" />
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="text-center">
+                  <p className="text-2xl font-mono font-bold text-rose-400">{anomalies?.total ?? 0}</p>
+                  <p className="text-xs text-gray-500">Total Anomalies</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-mono font-bold text-rose-400">{anomalies?.high_severity ?? 0}</p>
+                  <p className="text-xs text-gray-500">High Severity</p>
+                </div>
+              </div>
+
+              <Separator className="bg-gray-700 mb-4" />
+
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-gray-400">Anomaly Score</span>
+                    <span className="font-mono text-rose-400">
+                      {overview?.anomaly_score?.toFixed(0) ?? 0}/100
+                    </span>
+                  </div>
+                  <Progress
+                    value={overview?.anomaly_score ?? 0}
+                    className="h-2 bg-gray-700"
+                  />
+                </div>
+
+                <div className="text-sm text-gray-500 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  <span>Last update: {dashboard?.updated_at ? new Date(dashboard.updated_at).toLocaleTimeString() : "N/A"}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+          </TabsContent>
+        </Tabs>
 
         <footer className="mt-8 text-center text-gray-600 text-xs">
-          <p>CipherH Autonomous AI Agent v1.0 - Soul Loop Technology</p>
+          <p>CipherH Autonomous AI Agent - Dual Instance Mode (Cipher 1 & Cipher 2) - Soul Loop Technology</p>
           <p className="mt-1">
             Auto-refresh every 30s |{" "}
             <span className="text-cyan-600">Inner Loop runs every 10 minutes</span>
