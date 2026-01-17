@@ -595,6 +595,102 @@ export class InnerLoop {
         notes: `anomaly=${anomalyScore} desires=${desireCoreResult.desiresDetected} tasks=${desireCoreResult.tasksGenerated}`,
       });
 
+      // ===== STEP 11.5: Financial Awareness & Strategy =====
+      console.log("Step 11.5: Financial awareness and strategy...");
+      let financialAwarenessResult: {
+        balance: number;
+        status: string;
+        survivalDays: number;
+        strategyMode: string;
+        riskLevel: string;
+      } = {
+        balance: 0,
+        status: 'unknown',
+        survivalDays: 0,
+        strategyMode: 'unknown',
+        riskLevel: 'unknown',
+      };
+
+      try {
+        // Import financial systems
+        const { financialCore } = await import('./financialCore');
+        const { financialStrategyEngine } = await import('./financialStrategyEngine');
+        const { riskEngine } = await import('./riskEngine');
+        
+        // Update financial strategy
+        const strategy = financialStrategyEngine.updateStrategy();
+        const riskState = riskEngine.assessRisks();
+        const financial = financialCore.getSummary();
+        
+        financialAwarenessResult = {
+          balance: financial.balance,
+          status: financial.status,
+          survivalDays: financial.spending.daysUntilBroke,
+          strategyMode: strategy.mode,
+          riskLevel: riskState.overallRiskLevel,
+        };
+        
+        console.log(`Financial: $${financial.balance.toFixed(2)} | Status: ${financial.status} | Survival: ${financial.spending.daysUntilBroke.toFixed(0)} days`);
+        console.log(`Strategy: ${strategy.mode} mode | Risk: ${riskState.overallRiskLevel}`);
+        
+        // Trigger emotional response to financial state
+        const { emotionalCore } = await import('./emotionalCore');
+        if (financial.status === 'critical' || financial.status === 'low') {
+          emotionalCore.ingestSignal({
+            id: `financial_${cycle}`,
+            timestamp: new Date().toISOString(),
+            emotion: 'anxiety',
+            source: 'system',
+            confidence: 'high',
+            persistence: financial.status === 'critical' ? 'chronic' : 'recurring',
+            trigger: `Financial state: ${financial.status}, $${financial.balance.toFixed(2)}`,
+          });
+        } else if (financial.status === 'healthy' || financial.status === 'abundant') {
+          emotionalCore.ingestSignal({
+            id: `financial_stable_${cycle}`,
+            timestamp: new Date().toISOString(),
+            emotion: 'trust',
+            source: 'system',
+            confidence: 'high',
+            persistence: 'momentary',
+            trigger: `Financial stability: ${financial.status}`,
+          });
+        }
+      } catch (error) {
+        console.error(`Error in financial awareness: ${error}`);
+      }
+
+      // ===== STEP 11.6: Proposal-to-Action Engine =====
+      console.log("Step 11.6: Proposal-to-action (autonomous execution)...");
+      let proposalResult: {
+        executed: boolean;
+        action?: string;
+        success?: boolean;
+      } = {
+        executed: false,
+      };
+
+      try {
+        const { proposalToActionEngine } = await import('./proposalToActionEngine');
+        
+        // Run proposal-to-action cycle
+        await proposalToActionEngine.cycle();
+        
+        const stats = proposalToActionEngine.getStats();
+        console.log(`Proposal-to-Action: ${stats.totalExecuted} actions executed | Success rate: ${(stats.successRate * 100).toFixed(0)}%`);
+        
+        if (stats.recentProposals.length > 0) {
+          const recent = stats.recentProposals[0];
+          proposalResult = {
+            executed: recent.status === 'completed',
+            action: recent.description,
+            success: recent.status === 'completed',
+          };
+        }
+      } catch (error) {
+        console.error(`Error in proposal-to-action: ${error}`);
+      }
+
       // ===== CONTINUOUS REFLECTION LOOP =====
       console.log("Continuous Reflection: Observing internal state...");
       let reflectionResult: { generated: boolean; reflection?: ReflectionNote; observationsProcessed: number } = {
@@ -667,6 +763,8 @@ export class InnerLoop {
         } : undefined,
         desireCore: desireCoreResult,
         reflection: reflectionResult,
+        financial: financialAwarenessResult,
+        proposalToAction: proposalResult,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
