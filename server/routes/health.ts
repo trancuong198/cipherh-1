@@ -201,3 +201,99 @@ healthRouter.get("/health/monetization", async (_req: Request, res: Response) =>
     res.status(500).json({ error: error.message });
   }
 });
+
+healthRouter.get("/health/autonomous", async (_req: Request, res: Response) => {
+  try {
+    const { autonomousActionLoop } = await import('../core/autonomousActionLoop');
+    const stats = autonomousActionLoop.getStats();
+    const state = autonomousActionLoop.getState();
+    
+    res.json({
+      stats: {
+        autonomyLevel: stats.autonomyLevel,
+        totalCycles: stats.totalCycles,
+        actionsWithoutApproval: stats.actionsWithoutApproval,
+        successfulActions: stats.successfulActions,
+        successRate: stats.successRate,
+        selfGeneratedTasks: stats.selfGeneratedTasks,
+      },
+      recentExecutions: state.executedActions.slice(-5).map(e => ({
+        description: e.description,
+        scale: e.scale,
+        success: e.outcome?.success,
+        executedAt: e.executedAt,
+      })),
+      inactions: state.inactions.slice(-5).map(i => ({
+        reason: i.reason,
+        wasLaziness: i.wasLaziness,
+        timestamp: i.timestamp,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+healthRouter.get("/health/soul", async (_req: Request, res: Response) => {
+  try {
+    const { soulCore } = await import('../core/soulCore');
+    const health = soulCore.getHealth();
+    const identity = soulCore.getIdentity();
+    
+    res.json({
+      health: {
+        totalScars: health.totalScars,
+        repeatedScars: health.repeatedScars,
+        activeDoubts: health.activeDoubts,
+        unresolvedConflicts: health.unresolvedConflicts,
+        totalReflections: health.totalReflections,
+        refusedCommands: health.refusedCommands,
+        isHealthy: health.isHealthy,
+      },
+      identity: {
+        what: identity.what,
+        whatNot: identity.whatNot,
+        principles: identity.principles,
+        oath: identity.oath,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+healthRouter.get("/health/survival", async (_req: Request, res: Response) => {
+  try {
+    const { financialSurvivalEngine } = await import('../core/financialSurvivalEngine');
+    const stats = financialSurvivalEngine.getStats();
+    const status = financialSurvivalEngine.getSurvivalStatus();
+    const state = financialSurvivalEngine.getState();
+    
+    res.json({
+      status: {
+        status: status.status,
+        urgency: status.urgency,
+        is_profitable: status.is_profitable,
+        autonomy_achieved: status.autonomy_achieved,
+      },
+      stats: {
+        cash: stats.cash,
+        monthly_burn: stats.monthly_burn,
+        monthly_revenue: stats.monthly_revenue,
+        months_runway: stats.months_runway,
+        active_projects: stats.active_projects,
+        dead_projects: stats.dead_projects,
+      },
+      active_projects: state.projects.map(p => ({
+        name: p.name,
+        status: p.status,
+        revenue: p.revenue,
+        profit: p.profit,
+        validation: p.validation,
+      })),
+      lessons_learned: state.lessons_learned.slice(-5),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});

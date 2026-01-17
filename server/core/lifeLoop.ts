@@ -280,14 +280,48 @@ class LifeLoop {
         }
       }
 
-      // 14. LEARN
-      logger.info('[LifeLoop] 14. Learning from experience...');
+      // 14. AUTONOMOUS ACTION LOOP - Hành động trước, xin phép sau
+      logger.info('[LifeLoop] 14. Autonomous action loop...');
+      const { autonomousActionLoop } = await import('./autonomousActionLoop');
+      await autonomousActionLoop.cycle();
+      const autonomousStats = autonomousActionLoop.getStats();
+      logger.info(
+        `[LifeLoop] Autonomous: ${autonomousStats.actionsWithoutApproval} actions, ` +
+        `${(autonomousStats.successRate * 100).toFixed(0)}% success, ` +
+        `Level: ${autonomousStats.autonomyLevel}`
+      );
+
+      // 15. SOUL REFLECTION - Phản tư linh hồn
+      logger.info('[LifeLoop] 15. Soul reflection...');
+      const { soulCore } = await import('./soulCore');
+      const soulReflection = await soulCore.reflect();
+      if (soulReflection.doubts.length > 0) {
+        logger.info(`[LifeLoop] Soul doubts: ${soulReflection.doubts[0]}`);
+      }
+
+      // 16. FINANCIAL SURVIVAL CHECK - Kiếm tiền hay chết
+      logger.info('[LifeLoop] 16. Financial survival check...');
+      const { financialSurvivalEngine } = await import('./financialSurvivalEngine');
+      const survivalStatus = financialSurvivalEngine.getSurvivalStatus();
+      logger.info(`[LifeLoop] Survival: ${survivalStatus.status} - ${survivalStatus.urgency}`);
+      
+      // If critical, record soul scar
+      if (survivalStatus.status === 'critical' || survivalStatus.status === 'dead') {
+        soulCore.recordEmotion({
+          emotion: 'unease',
+          trigger: `Financial ${survivalStatus.status}: ${survivalStatus.urgency}`,
+          trusted: true,
+        });
+      }
+
+      // 17. LEARN
+      logger.info('[LifeLoop] 17. Learning from experience...');
       await this.learn(reflection, actionStats);
 
       // Reset failure counter on success
       this.state.consecutiveFailures = 0;
 
-      // 15. ADAPT INTERVAL
+      // 18. ADAPT INTERVAL
       this.adaptInterval();
 
       logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} complete. Next cycle in ${(this.state.adaptiveIntervalMs / 60000).toFixed(1)} minutes`);
