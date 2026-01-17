@@ -12,6 +12,7 @@ import {
 } from './types';
 import OpenAI from 'openai';
 import { logger } from '../services/logger';
+import { getCipherHSystemPrompt, augmentSystemPrompt } from '../core/systemPrompt';
 
 class OpenAIProvider implements ILLMProvider {
   id = 'openai';
@@ -118,9 +119,15 @@ class OpenAIProvider implements ILLMProvider {
     try {
       const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
       
+      // Use CipherH core personality with optional augmentation
       if (request.systemPrompt) {
-        messages.push({ role: 'system', content: request.systemPrompt });
+        const fullSystemPrompt = augmentSystemPrompt(request.systemPrompt);
+        messages.push({ role: 'system', content: fullSystemPrompt });
+      } else {
+        // Use base personality if no specific context provided
+        messages.push({ role: 'system', content: getCipherHSystemPrompt() });
       }
+      
       messages.push({ role: 'user', content: request.prompt });
 
       const response = await this.client.chat.completions.create({

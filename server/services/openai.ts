@@ -3,6 +3,7 @@
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 
 import OpenAI from "openai";
+import { getCipherHSystemPrompt, augmentSystemPrompt } from "../core/systemPrompt";
 
 export interface StrategyResponse {
   assessment?: string;
@@ -56,9 +57,11 @@ export class OpenAIService {
     }
 
     try {
-      const systemPrompt = `Ban la strategist AI cho he thong tu tri CipherH.
+      const contextPrompt = `Ban la strategist AI cho he thong tu tri CipherH.
 Nhiem vu: Phan tich tinh trang he thong va de xuat chien luoc.
 Tra loi bang JSON format.`;
+      
+      const systemPrompt = augmentSystemPrompt(contextPrompt);
 
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -105,10 +108,13 @@ Tra loi bang JSON format.`;
 Logs:
 ${logsText}`;
 
+      const contextPrompt = "Ban la AI phan tich logs cho he thong tu tri.";
+      const systemPrompt = augmentSystemPrompt(contextPrompt);
+
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          { role: "system", content: "Ban la AI phan tich logs cho he thong tu tri." },
+          { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -132,10 +138,13 @@ ${logsText}`;
     }
 
     try {
+      const contextPrompt = "Ban la AI tao insight cho he thong tu tri CipherH.";
+      const systemPrompt = augmentSystemPrompt(contextPrompt);
+
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          { role: "system", content: "Ban la AI tao insight cho he thong tu tri CipherH." },
+          { role: "system", content: systemPrompt },
           { role: "user", content: `Tao insight tu context sau:\n${context}` },
         ],
         max_completion_tokens: 500,
@@ -154,8 +163,11 @@ ${logsText}`;
     }
 
     try {
+      const contextPrompt = "Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich.";
+      const systemPrompt = augmentSystemPrompt(contextPrompt);
+
       const messages: { role: "system" | "user"; content: string }[] = [
-        { role: "system", content: "Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich." },
+        { role: "system", content: systemPrompt },
       ];
 
       if (context) {
