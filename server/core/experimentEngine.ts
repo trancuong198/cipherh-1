@@ -96,7 +96,7 @@ class ExperimentEngine {
     description: string
   ): Experiment {
     const experiment: Experiment = {
-      id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       type,
       variantA,
       variantB,

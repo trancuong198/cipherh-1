@@ -112,7 +112,7 @@ class SelfQuestionEngine {
     }
 
     const selfQuestion: SelfQuestion = {
-      id: `q_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       question,
       context: JSON.stringify(context),
       askedAt: new Date().toISOString(),
