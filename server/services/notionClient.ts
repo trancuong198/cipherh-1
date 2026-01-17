@@ -92,3 +92,25 @@ export async function getConnectionMethod(): Promise<string> {
 
   return "none";
 }
+
+// Initialize Notion service - for auto-discovery
+export async function init(): Promise<boolean> {
+  try {
+    const connected = await isNotionConnected();
+    if (!connected) {
+      console.log('[Notion] No token found - memory persistence disabled');
+      return false;
+    }
+    
+    const method = await getConnectionMethod();
+    console.log(`[Notion] Connected via ${method} method`);
+    
+    // Test the connection by creating client
+    await getUncachableNotionClient();
+    console.log('[Notion] Connection verified successfully');
+    return true;
+  } catch (error: any) {
+    console.log(`[Notion] Connection failed: ${error.message}`);
+    return false;
+  }
+}
