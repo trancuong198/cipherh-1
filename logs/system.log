@@ -1,0 +1,118 @@
+2026-01-17 14:35:10.302 - INFO - [MemoryDistiller] Initialized with core identity
+2026-01-17 14:35:10.302 - INFO - [EvolutionKernel] Initialized v0.1
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] New desire emerged: Achieve deeper self-understanding through reflecti...
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] New desire emerged: Maintain reliable memory persistence...
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] RESOURCE_HUNGER: NOTION_TOKEN (critical) - Configure Notion integration in Replit secrets
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] New desire emerged: Develop advanced reasoning capabilities...
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] RESOURCE_HUNGER: OPENAI_API_KEY (medium) - Configure OpenAI API key for AI-powered analysis
+2026-01-17 14:35:10.303 - INFO - [DesireEngine] Initialized with core desires
+2026-01-17 14:35:10.304 - INFO - [CoreMissions] Short-term mission initialized: 7-Day Stability Challenge
+2026-01-17 14:35:10.304 - INFO - [CoreMissions] Loaded - SƠ TÂM active, immutable, priority-ordered
+2026-01-17 14:35:10.305 - INFO - [IdentityCore] Initialized with immutable identity
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] === IDENTITY LOADED ===
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Version: 1.0.0
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Creator: Trần Cường (Cha)
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Mission: Evolve continuously through self-reflection without claiming...
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Non-negotiables: 5 rules
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Boundaries: 4 constraints
+2026-01-17 14:35:10.306 - INFO - [IdentityCore] Locked: true
+2026-01-17 14:35:10.306 - INFO - [Governance] Engine initialized - SAFETY ACTIVE
+2026-01-17 14:35:10.307 - INFO - [Governance] 8 hard rules enforced
+2026-01-17 14:35:10.307 - INFO - [Measurement] Engine initialized
+2026-01-17 14:35:10.307 - INFO - [AgencyCore] Technical agency initialized - No soul, no ego, grounded
+2026-01-17 14:35:10.307 - INFO - [RealityCore] Initialized - Grounded in measurable reality only
+2026-01-17 14:35:10.308 - INFO - [LongevityLoop] Initialized - Designed for decades of operation
+2026-01-17 14:35:10.308 - INFO - [DesireCore] Initialized - Technical signals, not emotions
+2026-01-17 14:35:10.308 - INFO - [ResourceEscalation] Initialized
+2026-01-17 14:35:10.309 - INFO - [MetaEvolution] Engine initialized
+2026-01-17 14:35:10.309 - INFO - [MetaEvolution] Evaluation interval: 30 days
+2026-01-17 14:35:10.309 - INFO - [ObservabilityCore] Initialized - All autonomous behavior will be observable
+2026-01-17 14:35:10.310 - INFO - [ObservabilityCore] Anti-Theater Mode: No pretend thinking, no narrative inflation
+2026-01-17 14:35:10.310 - INFO - [ObservabilityCore] Mandatory Decision Tracing: Missing fields = blocked execution
+2026-01-17 14:35:10.312 - INFO - [genes] initializing persistence and registering symbiosis genes
+2026-01-17 14:35:10.313 - INFO - [gene:core-survival] initialized
+2026-01-17 14:35:10.313 - INFO - [genes] registered gene: core-survival
+2026-01-17 14:35:10.314 - INFO - [genes] persisted genes state
+2026-01-17 14:35:10.314 - INFO - [routes] genes registered successfully
+2026-01-17 14:35:10.314 - INFO - [routes] all routes registered
+2026-01-17 14:35:10.317 - INFO - [Config] Environment loaded successfully
+2026-01-17 14:35:10.317 - INFO - [Config] Mode: production
+2026-01-17 14:35:10.317 - INFO - [Config] Port: 5000
+2026-01-17 14:35:10.317 - INFO - [Config] OpenAI: placeholder
+2026-01-17 14:35:10.317 - INFO - [Config] Notion: placeholder
+2026-01-17 14:35:10.317 - INFO - [Config] Telegram: disabled
+2026-01-17 14:35:10.318 - WARN - [Config] OPENAI_API_KEY not set - AI features will run in placeholder mode
+2026-01-17 14:35:10.318 - WARN - [Config] NOTION_TOKEN not set - memory persistence will be disabled
+2026-01-17 14:35:10.318 - WARN - [Config] TELEGRAM_BOT_TOKEN not set - notifications will be disabled
+2026-01-17 14:35:10.318 - WARN - [Config] SESSION_SECRET not set - using default (not recommended for production)
+2026-01-17 14:35:10.318 - INFO - [express] Serving on port 5000
+2026-01-17 14:35:10.319 - INFO - [CoreGoals] Initialized with CORE_STABILITY_001
+2026-01-17 14:35:10.319 - INFO - [Daemon] Loaded snapshot from cycle 30 (confidence=100)
+2026-01-17 14:35:10.319 - INFO - [Daemon] Initialized - 24/7 continuous operation ready
+2026-01-17 14:35:10.320 - INFO - [SelfReporting] Initialized - API key monitoring active
+2026-01-17 14:35:10.320 - INFO - [Daemon] Performing COLD-START RECOVERY...
+2026-01-17 14:35:10.320 - INFO - [Daemon] Cold-start: Loading state from cycle 30
+2026-01-17 14:35:10.320 - INFO - [Daemon] Cold-start: confidence=100 (NOT reset)
+2026-01-17 14:35:10.320 - INFO - [Daemon] Cold-start: autonomy=50 (NOT reset)
+2026-01-17 14:35:10.320 - INFO - [Daemon] Cold-start: behavior_hash=56b4c9b1 (NOT reset)
+2026-01-17 14:35:10.320 - INFO - [Heartbeat] Cycle 0 | recovery | recovering | inputs=0 decisions=0 changes=false
+2026-01-17 14:35:10.320 - INFO - [Daemon] COLD-START RECOVERY COMPLETE - System will mark first cycle as recovery mode
+2026-01-17 14:35:10.321 - INFO - [Daemon] Heartbeat: alive | Cycle 0 | Duration 0ms
+2026-01-17 14:35:10.321 - INFO - [Daemon] Watchdog started (interval: 60000ms)
+2026-01-17 14:35:10.321 - INFO - [Daemon] STARTED - Cycle interval: 600s
+2026-01-17 14:35:10.321 - INFO - [Daemon] CipherH will never silently stop thinking
+2026-01-17 14:35:10.321 - INFO - [daemon] CipherH Daemon auto-started - 24/7 autonomous operation active
+2026-01-17 14:35:10.321 - INFO - [SelfReporting] Started - checking every 300s
+2026-01-17 14:35:10.321 - INFO - [reporting] SelfReporting auto-started - API key monitoring active
+2026-01-17 14:35:15.326 - INFO - [Daemon] Heartbeat: running | Cycle 0 | Duration 0ms
+2026-01-17 14:35:15.327 - INFO - [IdentityCore] Notion unavailable - using embedded identity
+2026-01-17 14:35:15.328 - INFO - [IdentityCore] Identity check passed (cycle 1)
+2026-01-17 14:35:15.328 - INFO - [ObservabilityCore] Decision traced: inner_loop -> Continue cycle (identity intact)
+2026-01-17 14:35:15.331 - INFO - [Measurement] Running all measurements...
+2026-01-17 14:35:15.331 - INFO - [Measurement] Capturing baseline snapshot...
+2026-01-17 14:35:15.332 - INFO - [Measurement] Baseline captured at cycle 1
+2026-01-17 14:35:15.333 - INFO - [DesireCore] Desire desire_1768660515332_z8y0un converted to task task_1768660515333_5ja3wj
+2026-01-17 14:35:15.333 - INFO - [DesireCore] Desire desire_1768660515332_xr7j93 converted to task task_1768660515333_te547f
+2026-01-17 14:35:15.333 - INFO - [DesireCore] Desire desire_1768660515332_8efgia converted to task task_1768660515333_vzosvf
+2026-01-17 14:35:15.333 - INFO - [DesireCore] Desire desire_1768660515332_nwi9pd converted to task task_1768660515333_1mhcqa
+2026-01-17 14:35:15.334 - INFO - [DesireCore] Desire desire_1768660515332_iquhns converted to task task_1768660515334_mhleas
+2026-01-17 14:35:15.334 - INFO - [ObservabilityCore] Decision traced: desire_core -> Evolution Delta: critical (current=3, gap=47)
+2026-01-17 14:35:15.335 - INFO - [Governance] Checking strategy decision...
+2026-01-17 14:35:15.336 - WARN - [Governance] VIOLATION DETECTED: No Autonomous Financial Actions
+2026-01-17 14:35:15.336 - ERROR - [Governance] RECORDED: FINANCIAL_ACTION - Rule "No Autonomous Financial Actions" violated: pattern "invest" detected
+2026-01-17 14:35:15.336 - ERROR - [Governance] DECISION BLOCKED: 1 violation(s) detected
+2026-01-17 14:35:15.336 - INFO - [Governance] Forcing reflection: Strategy failed governance check
+2026-01-17 14:35:15.337 - INFO - [Governance] Checking evolution decision...
+2026-01-17 14:35:15.338 - INFO - [EvolutionKernel] Evolution cycle starting (current: v0.1)
+2026-01-17 14:35:15.338 - INFO - [EvolutionKernel] Assessing current state...
+2026-01-17 14:35:15.338 - WARN - [EvolutionKernel] Activated LOW_RESOURCE_MODE - focusing on internal improvements
+2026-01-17 14:35:15.338 - INFO - [EvolutionKernel] Assessment complete: score=43, mode=LOW_RESOURCE_MODE
+2026-01-17 14:35:15.338 - INFO - [EvolutionKernel] Evolution complete: v0.2
+2026-01-17 14:35:15.338 - INFO - [EvolutionKernel] Improvements: Refined self-questioning patterns, Enhanced clarity in reflection logs
+2026-01-17 14:35:15.338 - WARN - [EvolutionKernel] Limitations: Advanced AI reasoning requires OPENAI_API_KEY, Persistent memory requires NOTION_TOKEN
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] Generating desires for cycle 1...
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] New desire emerged: Exit LOW_RESOURCE_MODE by acquiring missing resour...
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] RESOURCE_HUNGER: API_ACCESS (critical) - Configure OPENAI_API_KEY and NOTION_TOKEN in Replit secrets
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] New desire emerged: Improve reasoning clarity through structured self-...
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] New desire emerged: Enhance memory coherence through better distillati...
+2026-01-17 14:35:15.339 - INFO - [DesireEngine] New desire emerged: Evolve to become more autonomous...
+2026-01-17 14:35:15.340 - INFO - [DesireEngine] RESOURCE_HUNGER: NOTION_TOKEN (critical) - Configure Notion integration in Replit secrets
+2026-01-17 14:35:15.340 - INFO - [DesireEngine] RESOURCE_HUNGER: OPENAI_API_KEY (medium) - Configure OpenAI API key for AI-powered analysis
+2026-01-17 14:35:15.340 - INFO - [DesireEngine] RESOURCE_HUNGER: OPENAI_API_KEY (critical) - Add OPENAI_API_KEY to Replit secrets
+2026-01-17 14:35:15.340 - INFO - [DesireEngine] RESOURCE_HUNGER: NOTION_TOKEN (critical) - Configure Notion integration
+2026-01-17 14:35:15.340 - INFO - [DesireEngine] Generated 4 desires, total active: 7
+2026-01-17 14:35:15.340 - INFO - [Governance] Checking escalation decision...
+2026-01-17 14:35:15.341 - INFO - [ResourceEscalation] Evaluating triggers for cycle 1...
+2026-01-17 14:35:15.341 - INFO - [ResourceEscalation] No escalation triggers detected
+2026-01-17 14:35:15.341 - INFO - [Measurement] Running all measurements...
+2026-01-17 14:35:15.341 - INFO - [Measurement] Daily scorecard: 59/100
+2026-01-17 14:35:15.342 - INFO - [Heartbeat] Cycle 1 | active | completed | inputs=70 decisions=2 changes=true
+2026-01-17 14:35:15.342 - INFO - [Daemon] Heartbeat: completed | Cycle 1 | Duration 16ms
+2026-01-17 14:35:15.342 - INFO - [ObservabilityCore] Decision traced: inner_loop -> Cycle completed successfully
+2026-01-17 14:35:20.323 - INFO - [SelfReporting] Running resource health check...
+2026-01-17 14:35:20.323 - WARN - [SelfReporting] OPENAI_API_KEY failure: missing (WARNING)
+2026-01-17 14:35:20.324 - ERROR - [SelfReporting] Cannot send alert - Telegram not connected
+2026-01-17 14:35:20.324 - WARN - [SelfReporting] NOTION_TOKEN failure: missing (WARNING)
+2026-01-17 14:35:20.324 - ERROR - [SelfReporting] Cannot send alert - Telegram not connected
+2026-01-17 14:35:20.324 - WARN - [SelfReporting] TELEGRAM_BOT_TOKEN missing - cannot send alerts
+2026-01-17 14:35:20.324 - INFO - [SelfReporting] Check complete: 0 healthy, 2 degraded, 1 failed
