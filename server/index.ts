@@ -92,6 +92,19 @@ app.use((req, res, next) => {
       import('./core/lifeLoop').then(({ lifeLoop }) => {
         lifeLoop.start();
         logger.info('[lifeLoop] Autonomous Life Loop started - 24/7 operation active');
+        
+        // Graceful shutdown handler
+        const gracefulShutdown = () => {
+          logger.warn('[system] Shutdown signal received - saving state...');
+          lifeLoop.stop();
+          setTimeout(() => {
+            logger.info('[system] Shutdown complete');
+            process.exit(0);
+          }, 2000);
+        };
+        
+        process.on('SIGTERM', gracefulShutdown);
+        process.on('SIGINT', gracefulShutdown);
       }).catch((err) => {
         logger.error(`[lifeLoop] Failed to start life loop: ${err.message}`);
       });

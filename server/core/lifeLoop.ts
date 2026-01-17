@@ -24,6 +24,7 @@ import { proposalToActionEngine } from './proposalToActionEngine';
 import { riskEngine } from './riskEngine';
 import { emotionalCore } from './emotionalCore';
 import { memoryBridge } from './memory';
+import * as fs from 'fs';
 
 // ================================================
 // TYPES
@@ -69,8 +70,12 @@ class LifeLoop {
       return;
     }
 
+    // Load snapshot if exists (shutdown resilience)
+    this.loadSnapshot();
+
     this.state.alive = true;
     logger.info('[LifeLoop] Starting autonomous life loop - 24/7 operation');
+    logger.info(`[LifeLoop] Restored from cycle ${this.state.cycleCount}`);
 
     // Run first cycle immediately
     this.runCycle();
@@ -80,6 +85,9 @@ class LifeLoop {
    * Stop the life loop
    */
   stop(): void {
+    // Save snapshot before shutdown
+    this.saveSnapshot();
+    
     this.state.alive = false;
     
     if (this.loopHandle) {
@@ -87,7 +95,48 @@ class LifeLoop {
       this.loopHandle = null;
     }
 
-    logger.info('[LifeLoop] Stopped');
+    logger.info('[LifeLoop] Stopped - snapshot saved');
+  }
+
+  /**
+   * Save snapshot for shutdown resilience
+   */
+  private saveSnapshot(): void {
+    try {
+      const snapshot = {
+        ...this.state,
+        savedAt: new Date().toISOString(),
+        reason: 'shutdown',
+      };
+
+      fs.writeFileSync('./data/life_loop_snapshot.json', JSON.stringify(snapshot, null, 2));
+      logger.info('[LifeLoop] Snapshot saved');
+    } catch (error) {
+      logger.error(`[LifeLoop] Failed to save snapshot: ${error}`);
+    }
+  }
+
+  /**
+   * Load snapshot for recovery
+   */
+  private loadSnapshot(): void {
+    try {
+      const snapshotFile = './data/life_loop_snapshot.json';
+      
+      if (fs.existsSync(snapshotFile)) {
+        const snapshot = JSON.parse(fs.readFileSync(snapshotFile, 'utf-8'));
+        
+        // Restore state (but keep alive=false until we actually start)
+        this.state.cycleCount = snapshot.cycleCount || 0;
+        this.state.mode = snapshot.mode || 'balanced';
+        this.state.consecutiveFailures = snapshot.consecutiveFailures || 0;
+        this.state.adaptiveIntervalMs = snapshot.adaptiveIntervalMs || this.DEFAULT_INTERVAL_MS;
+        
+        logger.info(`[LifeLoop] Snapshot loaded: cycle=${this.state.cycleCount}, mode=${this.state.mode}`);
+      }
+    } catch (error) {
+      logger.error(`[LifeLoop] Failed to load snapshot: ${error}`);
+    }
   }
 
   /**
@@ -147,8 +196,48 @@ class LifeLoop {
       logger.info('[LifeLoop] 8. Observing outcomes...');
       this.observeOutcome(actionStats);
 
-      // 9. LEARN
-      logger.info('[LifeLoop] 9. Learning from experience...');
+      // 9. SELF-QUESTION - Tự đặt câu hỏi khó
+      logger.info('[LifeLoop] 9. Self-questioning...');
+      const { selfQuestionEngine } = await import('./selfQuestionEngine');
+      const question = selfQuestionEngine.generateQuestion({
+        financialStatus: financial.status,
+        recentFailures: actionStats.totalActionsFailed || 0,
+        consecutiveNoActions: actionStats.consecutiveNoActionCycles || 0,
+        survivalDays: financial.spending.daysUntilBroke,
+      });
+      
+      // Try to answer unanswered questions
+      await selfQuestionEngine.forceAnswerUnanswered({
+        recentActions: actionStats.recentProposals || [],
+        patterns: reflection.concerns,
+        financial,
+      });
+      
+      logger.info(`[LifeLoop] Question: "${question.question}"`);
+
+      // 10. META-PROMPT ADJUSTMENT - Tự sửa cách nghĩ
+      logger.info('[LifeLoop] 10. Meta-prompt adjustment...');
+      const { metaPromptEngine } = await import('./metaPromptEngine');
+      metaPromptEngine.analyzeBehaviorAndAdjust({
+        responses: [reflection.summary],
+        actions: actionStats.recentProposals?.map((p: any) => ({
+          success: p.status === 'completed',
+          type: p.type || 'unknown',
+        })) || [],
+        patterns: reflection.concerns,
+      });
+
+      // 11. EXPERIMENT ENGINE - A/B testing
+      logger.info('[LifeLoop] 11. Experiment management...');
+      const { experimentEngine } = await import('./experimentEngine');
+      experimentEngine.autoGenerateExperiments({
+        hasRevenueOpportunity: financial.revenueIdeas > 0,
+        recentFailures: actionStats.totalActionsFailed || 0,
+        financialStatus: financial.status,
+      });
+
+      // 12. LEARN
+      logger.info('[LifeLoop] 12. Learning from experience...');
       await this.learn(reflection, actionStats);
 
       // Reset failure counter on success
