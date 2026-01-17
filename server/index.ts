@@ -88,7 +88,28 @@ app.use((req, res, next) => {
       logConfigStatus();
       logger.info(`[express] Serving on port ${config.port}`);
       
-      // Auto-start daemon for 24/7 always-on operation
+      // Auto-start Life Loop for 24/7 autonomous operation
+      import('./core/lifeLoop').then(({ lifeLoop }) => {
+        lifeLoop.start();
+        logger.info('[lifeLoop] Autonomous Life Loop started - 24/7 operation active');
+        
+        // Graceful shutdown handler
+        const gracefulShutdown = () => {
+          logger.warn('[system] Shutdown signal received - saving state...');
+          lifeLoop.stop();
+          setTimeout(() => {
+            logger.info('[system] Shutdown complete');
+            process.exit(0);
+          }, 2000);
+        };
+        
+        process.on('SIGTERM', gracefulShutdown);
+        process.on('SIGINT', gracefulShutdown);
+      }).catch((err) => {
+        logger.error(`[lifeLoop] Failed to start life loop: ${err.message}`);
+      });
+      
+      // Auto-start daemon for legacy compatibility
       import('./core/daemon').then(({ daemon }) => {
         daemon.start();
         logger.info('[daemon] CipherH Daemon auto-started - 24/7 autonomous operation active');

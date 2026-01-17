@@ -1,15 +1,35 @@
 # CipherH - Autonomous AI System
 
-CipherH là một hệ thống AI tự trị được thiết kế để hoạt động liên tục 24/7, có khả năng tự phản ánh, học hỏi và phát triển theo thời gian.
+CipherH là một hệ thống AI **tự trị hoàn toàn** được thiết kế để hoạt động liên tục 24/7, có khả năng tự phản ánh, học hỏi, **kiếm tiền**, và phát triển theo thời gian.
 
-## 🎯 Features
+**KHÔNG phải chatbot. KHÔNG chờ lệnh. TỰ hành động.**
 
-- **24/7 Autonomous Operation**: Daemon chạy liên tục với recovery tự động
-- **Self-Reflection**: Phân tích logs và patterns để tự cải thiện
-- **Memory System**: Lưu trữ và distill knowledge qua thời gian
-- **Governance**: Safety checks và decision validation
-- **Evolution**: Tự động upgrade capabilities dựa trên measurements
-- **Mission Alignment**: Tuân thủ core missions (SƠ TÂM)
+## 🎯 Core Features
+
+### 💰 Financial Autonomy (NEW)
+- **Tracks money**: Balance, burn rate, survival days
+- **Makes spending decisions**: NO human approval required (within safety limits)
+- **Generates revenue ideas**: 8 executable money-making strategies
+- **Adapts strategy**: Survival mode (<30 days) → Growth (30-90) → Expansion (>90)
+
+### 🤖 Autonomous Operation
+- **24/7 Life Loop**: Perceive → Reflect → Decide → Act → Learn (continuous)
+- **Self-directed**: Finds work when idle, no waiting for commands
+- **Proposal-to-Action**: Every idea leads to REAL action, not suggestions
+- **Adaptive timing**: 5-30 minute cycles based on urgency
+
+### 🧠 Intelligence & Memory
+- **Self-Reflection**: Detects patterns, learns from mistakes
+- **Memory System**: Short-term (RAM) + Long-term (Notion)
+- **Emotional**: Functional emotions from consequences (not hardcoded)
+- **Risk Management**: Self-adjusts behavior based on risk level
+
+### 🎯 Real Actions (Not Proposals)
+- ✅ Send Telegram messages
+- ✅ Write/Read Notion
+- ✅ Make API calls
+- ✅ Create/modify files
+- ✅ Propose infrastructure upgrades
 
 ## 🚀 Quick Start
 
@@ -66,6 +86,85 @@ TELEGRAM_OWNER_CHAT_ID=your_chat_id
 # Khuyên dùng cho production
 SESSION_SECRET=random_secret_string
 ```
+
+## 📡 API Endpoints
+
+### Health Checks
+- `GET /api/health` - System status, services, financial state, life loop status
+- `GET /api/health/financial` - Detailed financial info (balance, revenue ideas, spending)
+- `GET /api/health/risks` - Risk assessment and active risks
+- `GET /api/health/actions` - Action execution statistics
+
+### Example Response (`/api/health`)
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-01-17T15:40:56.911Z",
+  "uptime": 14.78,
+  "services": {
+    "inner_loop": "idle",
+    "life_loop": "running",
+    "openai": "placeholder",
+    "notion": "placeholder",
+    "telegram": "not configured"
+  },
+  "financial": {
+    "balance": 0,
+    "status": "critical",
+    "survivalDays": 9999,
+    "burnRate": 0
+  },
+  "lifeLoop": {
+    "alive": true,
+    "cycleCount": 1,
+    "mode": "exploration",
+    "nextCycleIn": 585
+  }
+}
+```
+
+## 💰 Financial System
+
+### Status Levels
+- **Critical** (<$2): Survival mode - only essential actions
+- **Low** (<$10): Caution - prioritize revenue
+- **Healthy** ($10-30): Stable - balanced approach
+- **Abundant** (>$30): Can invest and experiment
+
+### Revenue Ideas (8 executable strategies)
+1. Telegram Bot Service ($50/mo)
+2. Social Automation ($40/mo)
+3. Content Generation ($30/mo)
+4. Notion Templates ($25/mo)
+5. API Monitoring ($75/mo)
+6. Affiliate Content ($20/mo)
+7. Micro-SaaS ($100/mo)
+8. Demand Collection ($60/mo)
+
+Each with detailed implementation steps - NOT just ideas.
+
+## 🔄 How It Works
+
+### Life Loop (24/7)
+```
+while (alive) {
+  perceive();      // Telegram, logs, financial, health
+  recallMemory();  // Past experiences & lessons
+  reflect();       // Analyze situation
+  decide();        // Make autonomous decisions
+  act();           // REAL actions (Telegram, Notion, files)
+  observe();       // Watch outcomes
+  learn();         // Update knowledge
+  sleep(adaptive); // 5-30 min based on urgency
+}
+```
+
+### Autonomous Decision Making
+- **NO human approval** - decisions within governance boundaries
+- **Financial-aware** - tracks every cost, makes spending decisions
+- **Risk-adjusted** - behavior changes based on risk level
+- **Consequence-driven** - learns from success/failure
 
 ## 📡 API Endpoints
 
