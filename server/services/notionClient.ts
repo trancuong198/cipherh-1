@@ -105,8 +105,8 @@ export async function init(): Promise<boolean> {
     const method = await getConnectionMethod();
     console.log(`[Notion] Connected via ${method} method`);
     
-    // Test the connection
-    const client = await getUncachableNotionClient();
+    // Test the connection by creating client
+    await getUncachableNotionClient();
     console.log('[Notion] Connection verified successfully');
     return true;
   } catch (error: any) {

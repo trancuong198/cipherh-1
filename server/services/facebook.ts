@@ -174,8 +174,12 @@ export async function replyToComment(commentId: string, message: string): Promis
  * Get service status
  */
 export function getStatus() {
+  const maskedPageId = PAGE_ID 
+    ? (PAGE_ID.length > 8 ? `${PAGE_ID.substring(0, 8)}...` : `${PAGE_ID.substring(0, 4)}...`)
+    : 'not set';
+  
   return {
     configured: !!(PAGE_ACCESS_TOKEN && PAGE_ID),
-    pageId: PAGE_ID ? `${PAGE_ID.substring(0, 8)}...` : 'not set',
+    pageId: maskedPageId,
   };
 }
