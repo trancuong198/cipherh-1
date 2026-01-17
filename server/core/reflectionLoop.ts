@@ -88,6 +88,9 @@ class ReflectionLoopEngine {
   private reflectionHistory: ReflectionNote[] = [];
   private lastReflectionTime: number = Date.now();
   private readonly reflectionIntervalMs: number = 45 * 60 * 1000; // 45 minutes
+  private readonly maxObservations: number = 500;
+  private readonly observationWindow: number = 50;
+  private readonly idleStagnationThreshold: number = 20;
   private selfMonitoring: SelfMonitoring = {
     mechanicalBehaviorDetected: false,
     repeatedPhrases: [],
@@ -108,15 +111,15 @@ class ReflectionLoopEngine {
   addObservation(obs: Omit<Observation, 'id' | 'timestamp'>): void {
     const observation: Observation = {
       ...obs,
-      id: `obs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `obs_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       timestamp: new Date().toISOString(),
     };
 
     this.observations.push(observation);
 
-    // Keep last 500 observations
-    if (this.observations.length > 500) {
-      this.observations = this.observations.slice(-500);
+    // Keep last maxObservations
+    if (this.observations.length > this.maxObservations) {
+      this.observations = this.observations.slice(-this.maxObservations);
     }
 
     logger.info(`[ReflectionLoop:Observe] ${observation.type} (${observation.intensity}) from ${observation.source}`);
@@ -188,7 +191,7 @@ class ReflectionLoopEngine {
   // ================================
 
   interpretObservations(): PatternDetection[] {
-    const recentObs = this.observations.slice(-50); // Last 50 observations
+    const recentObs = this.observations.slice(-this.observationWindow);
     const patterns: PatternDetection[] = [];
 
     // Pattern: Recurring errors
@@ -281,7 +284,7 @@ class ReflectionLoopEngine {
     }
 
     // Stagnation?
-    if (state.mode === 'idle' && state.cycle_count > 20) {
+    if (state.mode === 'idle' && state.cycle_count > this.idleStagnationThreshold) {
       notes.push('Been idle too long. Should consider next action.');
       triggers.push('stagnation');
     }
@@ -298,7 +301,7 @@ class ReflectionLoopEngine {
     }
 
     const reflection: ReflectionNote = {
-      id: `reflect_${Date.now()}`,
+      id: `reflect_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       timestamp: new Date().toISOString(),
       cycle: state.cycle_count,
       notes: notes.slice(0, 5), // Max 5 bullets

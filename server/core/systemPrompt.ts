@@ -93,7 +93,7 @@ export function getCipherHSystemPrompt(): string {
  */
 export function augmentSystemPrompt(contextPrompt: string): string {
   // If no valid context provided, return base personality
-  if (!contextPrompt?.trim()) {
+  if (!contextPrompt.trim()) {
     return CIPHERH_CORE_PERSONALITY;
   }
   return `${CIPHERH_CORE_PERSONALITY}\n\n--- CONTEXT-SPECIFIC INSTRUCTIONS ---\n\n${contextPrompt}`;
