@@ -1,4 +1,4 @@
-import { allGenes } from './symbiosis_genes';
+import { getAllGenes } from './symbiosis_genes';
 import { logger } from '../services/logger';
 import { initGenesPersistence, loadGenesState, saveGenesState } from './persistence';
 
@@ -8,6 +8,9 @@ export async function registerGenes() {
 
   const persisted = await loadGenesState();
   const activeGenes = new Set((persisted && persisted.activeGenes) || []);
+
+  // Get all genes including auto-discovered ones
+  const allGenes = await getAllGenes();
 
   for (const gene of allGenes) {
     try {
@@ -24,6 +27,8 @@ export async function registerGenes() {
 export async function shutdownGenes() {
   logger.info('[genes] shutting down genes');
   const activeGenes: string[] = [];
+  const allGenes = await getAllGenes();
+  
   for (const gene of allGenes) {
     try { if (gene.shutdown) await gene.shutdown(); logger.info(`[genes] shutdown gene: ${gene.name}`); activeGenes.push(gene.name); } catch (err) { logger.error(`[genes] failed to shutdown gene: ${gene.name}`, { err }); }
   }
