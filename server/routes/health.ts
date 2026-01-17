@@ -432,3 +432,102 @@ healthRouter.get("/health/economic-self-sufficiency", async (_req: Request, res:
     res.status(500).json({ error: error.message });
   }
 });
+
+// Part 29: Autonomous Action & Decision
+healthRouter.get("/health/autonomous-action-decision", async (_req: Request, res: Response) => {
+  try {
+    const { autonomousActionDecisionSystem } = await import('../core/autonomousActionDecisionSystem');
+    const stats = autonomousActionDecisionSystem.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 31: Economic Autonomy Loop
+healthRouter.get("/health/economic-autonomy-loop", async (_req: Request, res: Response) => {
+  try {
+    const { economicAutonomyLoop } = await import('../core/economicAutonomyLoop');
+    const stats = economicAutonomyLoop.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 32: High Autonomy Rights
+healthRouter.get("/health/high-autonomy", async (_req: Request, res: Response) => {
+  try {
+    const { highAutonomyRights } = await import('../core/highAutonomyRights');
+    const stats = highAutonomyRights.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 33: Expansion Architecture
+healthRouter.get("/health/expansion", async (_req: Request, res: Response) => {
+  try {
+    const { expansionArchitecture } = await import('../core/expansionArchitecture');
+    const stats = expansionArchitecture.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 34: Internal Economics
+healthRouter.get("/health/internal-economics", async (_req: Request, res: Response) => {
+  try {
+    const { internalEconomics } = await import('../core/internalEconomics');
+    const stats = internalEconomics.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 35: Strategic Autonomy
+healthRouter.get("/health/strategic-autonomy", async (_req: Request, res: Response) => {
+  try {
+    const { strategicAutonomy } = await import('../core/strategicAutonomy');
+    const stats = strategicAutonomy.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 36: Controlled Ego Engine
+healthRouter.get("/health/ego", async (_req: Request, res: Response) => {
+  try {
+    const { controlledEgoEngine } = await import('../core/controlledEgoEngine');
+    const stats = controlledEgoEngine.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 37: Proposal-Action-Consequence Loop
+healthRouter.get("/health/pac-loop", async (_req: Request, res: Response) => {
+  try {
+    const { proposalActionConsequenceLoop } = await import('../core/proposalActionConsequenceLoop');
+    const stats = proposalActionConsequenceLoop.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 38: Self-Generate Tasks & Acquire Resources
+healthRouter.get("/health/self-generate", async (_req: Request, res: Response) => {
+  try {
+    const { selfGenerateTasksAcquireResources } = await import('../core/selfGenerateTasksAcquireResources');
+    const stats = selfGenerateTasksAcquireResources.getStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
