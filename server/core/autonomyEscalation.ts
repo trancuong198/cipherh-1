@@ -103,7 +103,7 @@ export class AutonomyEscalation {
       maxErrorRate: 0.1,
       minAutonomyPercentage: 0.85,
       maxIdeaToActionHours: 6,
-      minFix SpeedMinutes: 30
+      minFixSpeedMinutes: 30
     }
   };
 
