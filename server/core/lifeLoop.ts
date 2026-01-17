@@ -314,14 +314,54 @@ class LifeLoop {
         });
       }
 
-      // 17. LEARN
-      logger.info('[LifeLoop] 17. Learning from experience...');
+      // 17. AGI CORE CYCLE - Sense → Think → Decide → Act → Reflect
+      logger.info('[LifeLoop] 17. AGI core cycle...');
+      const { agiAutonomyCore } = await import('./agiAutonomyCore');
+      await agiAutonomyCore.executeCoreCycle();
+      const agiStats = agiAutonomyCore.getStats();
+      logger.info(
+        `[LifeLoop] AGI: ${agiStats.totalCycles} cycles, ` +
+        `autonomy ${agiStats.autonomyLevel}%, ` +
+        `${agiStats.isStagnant ? 'STAGNANT' : 'active'}`
+      );
+
+      // 18. LIVING SOUL - Emotional response and identity
+      logger.info('[LifeLoop] 18. Living soul update...');
+      const { livingSoulSystem } = await import('./livingSoulSystem');
+      
+      // Generate emotion from current state
+      if (survivalStatus.status === 'critical') {
+        livingSoulSystem.generateEmotion('Financial critical', { repeated_failure: true });
+      }
+      
+      // Preserve identity
+      livingSoulSystem.preserveIdentityOnRestart();
+      const soulHealth = livingSoulSystem.getSoulHealth();
+      logger.info(`[LifeLoop] Soul: ${soulHealth.is_alive ? 'ALIVE' : 'dormant'}, conflicts: ${soulHealth.has_conflicts}`);
+
+      // 19. FINANCIAL PHILOSOPHY - Monetization cycle
+      logger.info('[LifeLoop] 19. Financial philosophy cycle...');
+      const { financialPhilosophySystem } = await import('./financialPhilosophySystem');
+      
+      // Run self-assessment
+      const assessment = financialPhilosophySystem.selfAssess();
+      if (assessment.warnings.length > 0) {
+        logger.warn(`[LifeLoop] Financial warnings: ${assessment.warnings[0]}`);
+      }
+      
+      // Track free work days
+      if (survivalStatus.status === 'dead' || survivalStatus.status === 'critical') {
+        financialPhilosophySystem.trackFreeWorkDay();
+      }
+
+      // 20. LEARN
+      logger.info('[LifeLoop] 20. Learning from experience...');
       await this.learn(reflection, actionStats);
 
       // Reset failure counter on success
       this.state.consecutiveFailures = 0;
 
-      // 18. ADAPT INTERVAL
+      // 21. ADAPT INTERVAL
       this.adaptInterval();
 
       logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} complete. Next cycle in ${(this.state.adaptiveIntervalMs / 60000).toFixed(1)} minutes`);

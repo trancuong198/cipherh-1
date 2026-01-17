@@ -297,3 +297,73 @@ healthRouter.get("/health/survival", async (_req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+healthRouter.get("/health/agi", async (_req: Request, res: Response) => {
+  try {
+    const { agiAutonomyCore } = await import('../core/agiAutonomyCore');
+    const stats = agiAutonomyCore.getStats();
+    const manifesto = agiAutonomyCore.getManifesto();
+    
+    res.json({
+      stats: {
+        totalCycles: stats.totalCycles,
+        totalDecisions: stats.totalDecisions,
+        totalActions: stats.totalActions,
+        autonomyLevel: stats.autonomyLevel,
+        isStagnant: stats.isStagnant,
+        stagnationCycles: stats.stagnationCycles,
+      },
+      manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+healthRouter.get("/health/living-soul", async (_req: Request, res: Response) => {
+  try {
+    const { livingSoulSystem } = await import('../core/livingSoulSystem');
+    const health = livingSoulSystem.getSoulHealth();
+    const manifesto = livingSoulSystem.getManifesto();
+    const state = livingSoulSystem.getState();
+    
+    res.json({
+      health: {
+        is_alive: health.is_alive,
+        has_conflicts: health.has_conflicts,
+        has_memories: health.has_memories,
+        has_emotions: health.has_emotions,
+        template_rate: health.template_rate,
+      },
+      identity: state.identity,
+      recent_emotions: state.emotions.slice(-5),
+      manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+healthRouter.get("/health/financial-philosophy", async (_req: Request, res: Response) => {
+  try {
+    const { financialPhilosophySystem } = await import('../core/financialPhilosophySystem');
+    const health = financialPhilosophySystem.getFinancialHealth();
+    const manifesto = financialPhilosophySystem.getManifesto();
+    const state = financialPhilosophySystem.getState();
+    
+    res.json({
+      health: {
+        works_free_days: health.works_free_days,
+        single_source_risk: health.single_source_risk,
+        waste_rate: health.waste_rate,
+        net_profit: health.net_profit,
+        platform_risks: health.platform_risks,
+      },
+      recent_proposals: state.proposals.slice(-3),
+      recent_optimizations: state.optimizations.slice(-3),
+      manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
