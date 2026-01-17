@@ -16,6 +16,7 @@ import { governanceEngine, GovernanceCheckResult } from "./governanceEngine";
 import { metaEvolutionEngine } from "./metaEvolutionEngine";
 import { measurementEngine, DailyScorecard } from "./measurementEngine";
 import { observabilityCore } from "./observabilityCore";
+import { reflectionLoop, ReflectionNote } from "./reflectionLoop";
 
 export interface InnerLoopResult {
   success: boolean;
@@ -56,6 +57,11 @@ export interface InnerLoopResult {
     tasksGenerated: number;
     desires: DesireCoreDesire[];
     tasks: SynthesizedTask[];
+  };
+  reflection?: {
+    generated: boolean;
+    reflection?: ReflectionNote;
+    observationsProcessed: number;
   };
   error?: string;
 }
@@ -589,6 +595,53 @@ export class InnerLoop {
         notes: `anomaly=${anomalyScore} desires=${desireCoreResult.desiresDetected} tasks=${desireCoreResult.tasksGenerated}`,
       });
 
+      // ===== CONTINUOUS REFLECTION LOOP =====
+      console.log("Continuous Reflection: Observing internal state...");
+      let reflectionResult: { generated: boolean; reflection?: ReflectionNote; observationsProcessed: number } = {
+        generated: false,
+        observationsProcessed: 0,
+      };
+
+      try {
+        // Observe internal state
+        reflectionLoop.observeInternalState();
+        
+        // Observe log patterns if anomalies detected
+        if (anomalyScore > 30) {
+          reflectionLoop.observeSystemLog(`Anomaly score ${anomalyScore} detected`, 'warning');
+        }
+
+        // Check if reflection is due
+        if (reflectionLoop.shouldReflect()) {
+          console.log("Generating scheduled reflection...");
+          const reflection = reflectionLoop.generateReflection();
+          
+          if (reflection) {
+            reflectionResult.generated = true;
+            reflectionResult.reflection = reflection;
+            
+            // Persist to memory
+            await reflectionLoop.persistReflection(reflection);
+            
+            // Get behavior adjustments
+            const adjustments = reflectionLoop.suggestBehaviorAdjustment();
+            if (adjustments.length > 0) {
+              console.log("Behavior adjustments suggested:");
+              for (const adj of adjustments) {
+                console.log(`  - ${adj}`);
+              }
+            }
+          }
+        }
+
+        const status = reflectionLoop.exportStatus();
+        reflectionResult.observationsProcessed = status.observationsCount;
+        
+        console.log(`Reflection status: ${status.reflectionsCount} total reflections, ${status.observationsCount} observations`);
+      } catch (error) {
+        console.error(`Error in reflection loop: ${error}`);
+      }
+
       this.isRunning = false;
 
       return {
@@ -613,6 +666,7 @@ export class InnerLoop {
           trend: measurementResult.highlights.length > measurementResult.concerns.length ? 'positive' : 'neutral',
         } : undefined,
         desireCore: desireCoreResult,
+        reflection: reflectionResult,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
