@@ -236,3 +236,22 @@ ${logsText}`;
 }
 
 export const openAIService = new OpenAIService();
+
+// Initialize OpenAI service - for auto-discovery
+export async function init(): Promise<boolean> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    console.log('[OpenAI] No API key found - AI features disabled');
+    return false;
+  }
+  
+  const testResult = await openAIService.testConnection();
+  if (testResult) {
+    console.log('[OpenAI] Service initialized successfully');
+    return true;
+  } else {
+    console.log('[OpenAI] Connection test failed');
+    return false;
+  }
+}

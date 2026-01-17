@@ -120,36 +120,169 @@ export async function initTelegram(): Promise<boolean> {
 ### Các Khả Năng / Capabilities
 
 1. **Telegram Bot** - Tự động khởi động khi có token ✅
-2. **Future Services** - Chỉ cần thêm `init()` function ✅
-3. **No Manual Work** - System tự động adapt ✅
+2. **Notion** - Tự động kết nối memory persistence ✅
+3. **OpenAI** - Tự động enable AI features ✅
+4. **Facebook** - Tự động kết nối Facebook Page ✅
+5. **Future Services** - Chỉ cần thêm `init()` function ✅
+
+### Ví Dụ Services Được Hỗ Trợ / Supported Services Examples
+
+#### Telegram
+```env
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_OWNER_CHAT_ID=123456789
+```
+
+#### Notion
+```env
+NOTION_TOKEN=secret_xxx...
+NOTION_DATABASE_ID=xxx-yyy-zzz...
+```
+
+#### OpenAI
+```env
+OPENAI_API_KEY=sk-proj-...
+```
+
+#### Facebook (Mới!)
+```env
+FACEBOOK_PAGE_ACCESS_TOKEN=EAAC...
+FACEBOOK_PAGE_ID=123456789...
+```
+
+**TẤT CẢ đều tự động khởi động - không cần code!**
 
 ## Thêm Service Mới / Adding New Services
 
-### Bước 1: Tạo Service File
+### Ví Dụ 1: Telegram (Đã có sẵn)
 
 ```typescript
-// server/services/your-service.ts
+// server/services/telegram.ts
+export async function initTelegram(): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  
+  if (!token) {
+    logger.warn('[Telegram] Token not found - skipping');
+    return false;
+  }
+  
+  // Initialize bot, start polling
+  logger.info('[Telegram] Bot started successfully');
+  return true;
+}
+```
+
+### Ví Dụ 2: Facebook (Mới thêm!)
+
+```typescript
+// server/services/facebook.ts
+export async function init(): Promise<boolean> {
+  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  
+  if (!token || !pageId) {
+    logger.info('[Facebook] Not configured - skipping');
+    return false;
+  }
+  
+  // Verify connection
+  const connected = await verifyFacebookConnection(token, pageId);
+  if (connected) {
+    logger.info('[Facebook] Connected successfully');
+    return true;
+  }
+  
+  return false;
+}
+```
+
+### Ví Dụ 3: Notion (Mới thêm!)
+
+```typescript
+// server/services/notionClient.ts
+export async function init(): Promise<boolean> {
+  const connected = await isNotionConnected();
+  
+  if (!connected) {
+    logger.info('[Notion] Not configured - memory disabled');
+    return false;
+  }
+  
+  logger.info('[Notion] Memory persistence enabled');
+  return true;
+}
+```
+
+### Ví Dụ 4: OpenAI (Mới thêm!)
+
+```typescript
+// server/services/openai.ts
+export async function init(): Promise<boolean> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    logger.info('[OpenAI] API key not found - AI disabled');
+    return false;
+  }
+  
+  const testResult = await openAIService.testConnection();
+  if (testResult) {
+    logger.info('[OpenAI] AI features enabled');
+    return true;
+  }
+  
+  return false;
+}
+```
+
+### Ví Dụ 5: Service Tương Lai (Template)
+
+```typescript
+// server/services/your-new-service.ts
 export async function init(): Promise<boolean> {
   const token = process.env.YOUR_SERVICE_TOKEN;
   
   if (!token) {
-    logger.warn('[YourService] Token not found - skipping');
+    logger.info('[YourService] Not configured');
     return false;
   }
   
-  // Your initialization code
+  // Your initialization logic here
   logger.info('[YourService] Initialized successfully');
   return true;
 }
 ```
 
-### Bước 2: Thế Thôi!
+### Bước 2: Thêm vào Auto-Discovery
 
-**KHÔNG CẦN** thêm gì khác. Hệ thống sẽ:
-1. ✅ Tự động phát hiện service
-2. ✅ Tự động gọi `init()`
-3. ✅ Tự động log kết quả
-4. ✅ Tự động xử lý lỗi
+```typescript
+// server/genes/autoDiscovery.ts
+async function getKnownServices() {
+  const services = [];
+  
+  // Your new service - just add these 8 lines!
+  try {
+    const yourService = await import('../services/your-service');
+    if (yourService.init) {
+      services.push({ name: 'your-service', init: yourService.init });
+    }
+  } catch (error) {
+    logger.debug('[AutoDiscovery] YourService not available');
+  }
+  
+  return services;
+}
+```
+
+### Bước 3: Thế Thôi!
+
+**HỆ THỐNG TỰ ĐỘNG:**
+1. ✅ Phát hiện service mới
+2. ✅ Gọi `init()` function
+3. ✅ Log kết quả
+4. ✅ Xử lý lỗi tự động
+
+**KHÔNG CẦN** sửa gì ở `symbiosis_genes.ts`, `routes.ts`, hay `index.ts`!
 
 ## Lợi Ích / Benefits
 

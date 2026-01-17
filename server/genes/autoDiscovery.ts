@@ -19,11 +19,18 @@ import { IGene } from './IGene';
 /**
  * Import all known services directly
  * This approach works in both development and production builds
+ * 
+ * To add a new service:
+ * 1. Create server/services/your-service.ts
+ * 2. Export an init() function that returns Promise<boolean>
+ * 3. Add it to this list
+ * 
+ * That's it! System will auto-discover and initialize it.
  */
 async function getKnownServices(): Promise<Array<{ name: string; init?: () => Promise<boolean> }>> {
   const services: Array<{ name: string; init?: () => Promise<boolean> }> = [];
   
-  // Import telegram service
+  // Telegram - messaging bot
   try {
     const telegram = await import('../services/telegram');
     if (telegram.initTelegram) {
@@ -36,10 +43,53 @@ async function getKnownServices(): Promise<Array<{ name: string; init?: () => Pr
     logger.debug('[AutoDiscovery] Telegram service not available');
   }
   
-  // Future services can be added here automatically by the system
-  // or by developers. The key is they follow a standard pattern:
-  // - Export an init() or initServiceName() function
-  // - Return Promise<boolean> (true = success, false = skip)
+  // Notion - memory persistence
+  try {
+    const notion = await import('../services/notionClient');
+    if (notion.init) {
+      services.push({
+        name: 'notion',
+        init: notion.init,
+      });
+    }
+  } catch (error) {
+    logger.debug('[AutoDiscovery] Notion service not available');
+  }
+  
+  // OpenAI - AI reasoning
+  try {
+    const openai = await import('../services/openai');
+    if (openai.init) {
+      services.push({
+        name: 'openai',
+        init: openai.init,
+      });
+    }
+  } catch (error) {
+    logger.debug('[AutoDiscovery] OpenAI service not available');
+  }
+  
+  // Facebook - social media integration
+  try {
+    const facebook = await import('../services/facebook');
+    if (facebook.init) {
+      services.push({
+        name: 'facebook',
+        init: facebook.init,
+      });
+    }
+  } catch (error) {
+    logger.debug('[AutoDiscovery] Facebook service not available');
+  }
+  
+  // Future services: Just add them here following the same pattern
+  // - Twitter/X
+  // - Instagram
+  // - Discord
+  // - Slack
+  // - Email
+  // - SMS
+  // etc.
   
   return services;
 }
@@ -101,6 +151,7 @@ export const selfHealingGene: IGene = {
   init: async () => {
     logger.info('[SelfHealing] Self-healing system initialized');
     logger.info('[SelfHealing] System automatically discovers and initializes services');
+    logger.info('[SelfHealing] Supported services: Telegram, Notion, OpenAI, Facebook, and more...');
     logger.info('[SelfHealing] Add new services by exporting init() functions - no manual gene registration needed');
   },
 };
