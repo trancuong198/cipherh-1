@@ -122,7 +122,7 @@ To verify the system prompt is working:
 ```bash
 cd /home/runner/work/cipherh-1/cipherh-1
 npx tsx -e "
-import { getCipherHSystemPrompt } from './server/core/systemPrompt.ts';
+import { getCipherHSystemPrompt } from './server/core/systemPrompt';
 const prompt = getCipherHSystemPrompt();
 console.log('Prompt length:', prompt.length);
 console.log('Contains CipherH:', prompt.includes('CipherH'));
