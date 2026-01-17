@@ -367,3 +367,68 @@ healthRouter.get("/health/financial-philosophy", async (_req: Request, res: Resp
     res.status(500).json({ error: error.message });
   }
 });
+
+// Part 21: Real Action Engine
+healthRouter.get("/health/real-action", async (_req: Request, res: Response) => {
+  try {
+    const { realActionEngine } = await import('../core/realActionEngine');
+    const stats = realActionEngine.getStats();
+    
+    res.json({
+      stats: {
+        totalActions: stats.totalActions,
+        recentSuccessRate: stats.recentSuccessRate,
+        consecutiveFailures: stats.consecutiveFailures,
+        automationCandidates: stats.automationCandidates,
+        automationReady: stats.automationReady,
+        timeSinceLastAction: stats.timeSinceLastAction,
+      },
+      manifesto: stats.manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 22: Continuous Operation System
+healthRouter.get("/health/continuous-operation", async (_req: Request, res: Response) => {
+  try {
+    const { continuousOperationSystem } = await import('../core/continuousOperationSystem');
+    const stats = continuousOperationSystem.getStats();
+    
+    res.json({
+      status: {
+        isRunning: stats.isRunning,
+        state: stats.state,
+        cyclesCompleted: stats.cyclesCompleted,
+        uptime: stats.uptime,
+      },
+      health: stats.health,
+      energy: stats.energy,
+      recentActivity: stats.recentActivity,
+      manifesto: stats.manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Part 23: Economic Self-Sufficiency
+healthRouter.get("/health/economic-self-sufficiency", async (_req: Request, res: Response) => {
+  try {
+    const { economicSelfSufficiencyEngine } = await import('../core/economicSelfSufficiencyEngine');
+    const stats = economicSelfSufficiencyEngine.getStats();
+    
+    res.json({
+      cashFlow: stats.cashFlow,
+      autonomy: stats.autonomy,
+      revenueStreams: stats.revenueStreams,
+      opportunities: stats.opportunities,
+      platformRisks: stats.platformRisks,
+      capabilities: stats.capabilities,
+      manifesto: stats.manifesto,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
