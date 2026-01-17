@@ -169,6 +169,38 @@ export class MemoryBridge {
     }
   }
 
+  async storeReflection(reflectionText: string, metadata?: Record<string, unknown>): Promise<boolean> {
+    const isConnected = await isNotionConnected();
+    if (!isConnected) {
+      console.log(`[Placeholder] Storing reflection:`, reflectionText.substring(0, 50) + "...");
+      return true;
+    }
+
+    console.log(`Storing reflection to Notion (${reflectionText.length} chars)`);
+
+    try {
+      const notion = await getUncachableNotionClient();
+      const metaStr = metadata ? `\n\nMetadata: ${JSON.stringify(metadata, null, 2)}` : '';
+      
+      await notion.pages.create({
+        parent: { database_id: this.databaseId },
+        properties: {
+          "tiêu đề": {
+            title: [{ text: { content: `[REFLECTION] ${new Date().toISOString().split('T')[0]}` } }]
+          },
+          "cipher h": {
+            rich_text: [{ text: { content: (reflectionText + metaStr).substring(0, 2000) } }]
+          }
+        }
+      });
+      console.log("Reflection stored to Notion");
+      return true;
+    } catch (error) {
+      console.error("Error storing reflection to Notion:", error);
+      return false;
+    }
+  }
+
   async readRecentMemories(limit: number = 10, memoryType?: string): Promise<MemoryRecord[]> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
