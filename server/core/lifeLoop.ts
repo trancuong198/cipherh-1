@@ -236,14 +236,58 @@ class LifeLoop {
         financialStatus: financial.status,
       });
 
-      // 12. LEARN
-      logger.info('[LifeLoop] 12. Learning from experience...');
+      // 12. SOCIAL LEARNING - Học từ đời thực
+      logger.info('[LifeLoop] 12. Social learning from real-world...');
+      const { socialLearningEngine } = await import('./socialLearningEngine');
+      const pragmaticInsights = socialLearningEngine.getPragmaticInsights();
+      if (pragmaticInsights.length > 0) {
+        logger.info(`[LifeLoop] Pragmatic insights: ${pragmaticInsights[0]}`);
+      }
+
+      // 13. AUTONOMOUS MONETIZATION - Tự kiếm tiền
+      logger.info('[LifeLoop] 13. Autonomous monetization...');
+      const { autonomousMonetizationEngine } = await import('./autonomousMonetizationEngine');
+      
+      // Update budget with current costs
+      autonomousMonetizationEngine.updateSelfBudget({
+        api: financial.spending.last24h,
+        compute: 0,
+        storage: 0,
+        other: 0,
+      });
+      
+      const monetizationStats = autonomousMonetizationEngine.getStats();
+      logger.info(
+        `[LifeLoop] Monetization: ${monetizationStats.activeStreams} streams, ` +
+        `$${monetizationStats.totalRevenue.toFixed(2)} revenue, ` +
+        `${monetizationStats.autonomyLevel.toFixed(0)}% autonomy`
+      );
+      
+      // If financial situation critical, auto-propose monetization
+      if (financial.status === 'critical' && monetizationStats.activeStreams === 0) {
+        const proposal = autonomousMonetizationEngine.proposeMonetization(
+          'Urgent revenue generation needed',
+          {
+            hasApiAccess: true,
+            hasSocialAccess: false,
+            hasNotionAccess: false,
+          }
+        );
+        
+        const decision = autonomousMonetizationEngine.decideAndDeploy(proposal.id);
+        if (decision.approved) {
+          logger.info(`[LifeLoop] Auto-approved monetization: ${proposal.title}`);
+        }
+      }
+
+      // 14. LEARN
+      logger.info('[LifeLoop] 14. Learning from experience...');
       await this.learn(reflection, actionStats);
 
       // Reset failure counter on success
       this.state.consecutiveFailures = 0;
 
-      // 10. ADAPT INTERVAL
+      // 15. ADAPT INTERVAL
       this.adaptInterval();
 
       logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} complete. Next cycle in ${(this.state.adaptiveIntervalMs / 60000).toFixed(1)} minutes`);

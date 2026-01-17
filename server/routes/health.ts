@@ -127,3 +127,77 @@ healthRouter.get("/health/actions", async (_req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+healthRouter.get("/health/social-learning", async (_req: Request, res: Response) => {
+  try {
+    const { socialLearningEngine } = await import('../core/socialLearningEngine');
+    const stats = socialLearningEngine.getStats();
+    const insights = socialLearningEngine.getPragmaticInsights();
+    const moneyPatterns = socialLearningEngine.getMoneyMakingPatterns().slice(0, 5);
+    const sayVsDo = socialLearningEngine.analyzeSayVsDo();
+    
+    res.json({
+      stats: {
+        totalSignals: stats.totalSignals,
+        totalPatterns: stats.totalPatterns,
+        moneyLessons: stats.moneyLessons,
+        failureAssets: stats.failureAssets,
+      },
+      insights,
+      sayVsDo: {
+        contradictions: sayVsDo.contradictions,
+        trustScore: sayVsDo.trustScore,
+      },
+      topMoneyPatterns: moneyPatterns.map(p => ({
+        pattern: p.pattern,
+        frequency: p.frequency,
+        moneyGenerated: p.moneyGenerated,
+        successRate: p.successRate,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+healthRouter.get("/health/monetization", async (_req: Request, res: Response) => {
+  try {
+    const { autonomousMonetizationEngine } = await import('../core/autonomousMonetizationEngine');
+    const state = autonomousMonetizationEngine.getState();
+    const stats = autonomousMonetizationEngine.getStats();
+    
+    res.json({
+      stats: {
+        activeStreams: stats.activeStreams,
+        totalRevenue: stats.totalRevenue,
+        totalProfit: stats.totalProfit,
+        autonomyLevel: stats.autonomyLevel,
+        monthsOfRunway: stats.monthsOfRunway,
+      },
+      selfBudget: state.selfBudget,
+      topStream: stats.topStream ? {
+        name: stats.topStream.name,
+        type: stats.topStream.type,
+        monthlyRevenue: stats.topStream.monthlyRevenue,
+        customers: stats.topStream.customers,
+        status: stats.topStream.status,
+      } : null,
+      streams: state.activeStreams.map(s => ({
+        name: s.name,
+        type: s.type,
+        status: s.status,
+        monthlyRevenue: s.monthlyRevenue,
+        netProfit: s.netProfit,
+        customers: s.customers,
+      })),
+      recentProposals: state.proposals.slice(-5).map(p => ({
+        title: p.title,
+        decision: p.decision,
+        estimatedRevenue: p.estimatedRevenue,
+        confidence: p.confidence,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});

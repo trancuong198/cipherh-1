@@ -97,10 +97,16 @@ class PerceptionEngine {
     // 5. Perceive memory patterns
     newSignals.push(...this.perceiveMemoryPatterns());
 
+    // 6. Perceive social learning insights
+    newSignals.push(...this.perceiveSocialLearning());
+
     // Add to state
     for (const signal of newSignals) {
       this.addSignal(signal);
     }
+
+    // Feed signals to social learning engine
+    await this.feedToSocialLearning(newSignals);
 
     this.state.lastPerceptionAt = Date.now();
     this.saveState();
@@ -305,6 +311,81 @@ class PerceptionEngine {
     }
 
     return signals;
+  }
+
+  /**
+   * Perceive social learning insights
+   */
+  private perceiveSocialLearning(): Signal[] {
+    const signals: Signal[] = [];
+
+    try {
+      // Dynamic import to avoid circular dependency
+      import('./socialLearningEngine').then(({ socialLearningEngine }) => {
+        const stats = socialLearningEngine.getStats();
+        const insights = socialLearningEngine.getPragmaticInsights();
+
+        if (stats.moneyLessons > 0) {
+          signals.push({
+            source: 'social_learning',
+            content: `Learned ${stats.moneyLessons} money lessons from real-world behavior`,
+            urgency: 50,
+            timestamp: Date.now(),
+            metadata: { moneyLessons: stats.moneyLessons },
+          });
+        }
+
+        if (stats.failureAssets > 10) {
+          signals.push({
+            source: 'social_learning',
+            content: `${stats.failureAssets} failure memories preserved as learning assets`,
+            urgency: 30,
+            timestamp: Date.now(),
+          });
+        }
+
+        if (insights.length > 0) {
+          signals.push({
+            source: 'social_learning',
+            content: `Pragmatic insight: ${insights[0]}`,
+            urgency: 40,
+            timestamp: Date.now(),
+          });
+        }
+      }).catch(() => {
+        // Ignore if social learning not yet initialized
+      });
+    } catch (error) {
+      // Ignore
+    }
+
+    return signals;
+  }
+
+  /**
+   * Feed signals to social learning engine
+   */
+  private async feedToSocialLearning(signals: Signal[]): Promise<void> {
+    try {
+      const { socialLearningEngine } = await import('./socialLearningEngine');
+
+      for (const signal of signals) {
+        // Feed telegram and financial signals to social learning
+        if (signal.source === 'telegram' || signal.source === 'financial') {
+          const metadata = signal.metadata || {};
+          
+          socialLearningEngine.learnFromRealWorld({
+            source: signal.source,
+            content: signal.content,
+            behavior: signal.content, // In real implementation, extract actual behavior
+            moneyInvolved: metadata.amount || 0,
+            attentionSeconds: 0,
+          });
+        }
+      }
+    } catch (error) {
+      // Ignore if social learning not available
+    }
   }
 
   /**
