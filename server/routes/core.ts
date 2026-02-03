@@ -13,6 +13,7 @@ import { episodicMemorySystem } from "../core/episodicMemory";
 import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
 import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
 import { experienceBasedLearning } from "../core/experienceBasedLearning";
+import { webSearchService } from "../services/webSearch";
 
 export const coreRouter = Router();
 
@@ -381,6 +382,28 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string) {
     } else {
       logger.info('[Chat] Notion not connected - using placeholder mode');
       memoryContext.notionMemorySummary = '   Notion chưa được kết nối (placeholder mode)\n   → Con chưa có bộ nhớ dài hạn\n   → Tạm thời con chỉ có conversation history';
+    }
+    
+    // 3. === WEB SEARCH: Truy cập internet nếu câu hỏi cần thông tin real-time ===
+    if (webSearchService.needsWebSearch(currentMessage)) {
+      try {
+        logger.info(`[Chat] 🌐 Question needs internet search: ${currentMessage.substring(0, 50)}...`);
+        const searchResponse = await webSearchService.search(currentMessage, {
+          maxResults: 3,
+          freshOnly: true,
+          includeAnswer: true,
+        });
+        
+        memoryContext.webSearchResults = webSearchService.formatResultsForAGI(searchResponse);
+        memoryContext.hasWebSearch = true;
+        logger.info(`[Chat] ✅ Web search completed: ${searchResponse.results.length} results`);
+      } catch (error) {
+        logger.warn('[Chat] Web search failed:', error);
+        memoryContext.webSearchResults = '⚠️ Không thể truy cập internet lúc này. Con sẽ trả lời dựa trên kiến thức hiện có.';
+        memoryContext.hasWebSearch = false;
+      }
+    } else {
+      memoryContext.hasWebSearch = false;
     }
 
   } catch (error: any) {
