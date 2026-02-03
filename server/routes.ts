@@ -2,6 +2,7 @@ import { type Express, type Request, type Response } from "express";
 import { type Server } from "http";
 import { governance as symbiosisGovernance } from "./core/governance";
 import { healthRouter } from "./routes/health";
+import { coreRouter } from "./routes/core";
 import { registerGenes } from "./genes";
 import { logger } from "./services/logger";
 
@@ -16,6 +17,9 @@ export async function registerRoutes(httpServer: Server, app: Express) {
 
   // Health routes
   app.use("/api", healthRouter);
+  
+  // Core routes (dashboard, inner loop control)
+  app.use("/api", coreRouter);
 
   // Symbiosis health endpoint
   app.get("/api/health/symbiosis", (_req: Request, res: Response) => {
