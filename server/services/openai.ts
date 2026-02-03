@@ -19,6 +19,13 @@ export interface LogAnalysisResponse {
   risk_level: "low" | "medium" | "high";
 }
 
+// Helper function to check if a model is a reasoning model that doesn't support custom temperature
+function isReasoningModel(model: string): boolean {
+  // Reasoning models (o1, o3, gpt-5) only support default temperature value of 1
+  const reasoningModelPrefixes = ['o1', 'o3', 'gpt-5'];
+  return reasoningModelPrefixes.some(prefix => model.toLowerCase().startsWith(prefix));
+}
+
 export class OpenAIService {
   private client: OpenAI | null = null;
   private configured: boolean = false;
@@ -179,12 +186,19 @@ ${logsText}`;
 
       console.log(`[OpenAI] Sending question to ${this.model}: "${question.substring(0, 50)}..."`);
 
-      const response = await this.client.chat.completions.create({
+      // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
+      const completionOptions: any = {
         model: this.model,
         messages,
         max_completion_tokens: 800,
-        temperature: 0.7,
-      });
+      };
+      
+      // Only set temperature for non-reasoning models
+      if (!isReasoningModel(this.model)) {
+        completionOptions.temperature = 0.7;
+      }
+
+      const response = await this.client.chat.completions.create(completionOptions);
 
       console.log(`[OpenAI] Response received, choices: ${response.choices?.length || 0}`);
       
@@ -246,12 +260,19 @@ ${logsText}`;
           { role: "user", content: question },
         ];
 
-        const response = await this.client!.chat.completions.create({
+        // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
+        const completionOptions: any = {
           model: fallbackModel,
           messages,
           max_completion_tokens: 800,
-          temperature: 0.7,
-        });
+        };
+        
+        // Only set temperature for non-reasoning models
+        if (!isReasoningModel(fallbackModel)) {
+          completionOptions.temperature = 0.7;
+        }
+
+        const response = await this.client!.chat.completions.create(completionOptions);
 
         if (response.choices && response.choices.length > 0 && response.choices[0].message.content) {
           console.log(`[OpenAI] Success with fallback model: ${fallbackModel}`);
