@@ -14,6 +14,7 @@ import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
 import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
 import { experienceBasedLearning } from "../core/experienceBasedLearning";
 import { webSearchService } from "../services/webSearch";
+import { socialMediaLearning } from "../services/socialMediaLearning";
 
 export const coreRouter = Router();
 
@@ -404,6 +405,21 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string) {
       }
     } else {
       memoryContext.hasWebSearch = false;
+    }
+    
+    // 4. === SOCIAL MEDIA AWARENESS: Học từ ngữ cảnh mạng xã hội ===
+    try {
+      const socialAwareness = socialMediaLearning.getSocialAwareness();
+      if (socialAwareness && !socialAwareness.includes('Chưa có dữ liệu')) {
+        memoryContext.socialAwareness = socialAwareness;
+        memoryContext.hasSocialContext = true;
+        logger.info('[Chat] 🌐 Added social media awareness to context');
+      } else {
+        memoryContext.hasSocialContext = false;
+      }
+    } catch (error) {
+      logger.warn('[Chat] Failed to get social awareness:', error);
+      memoryContext.hasSocialContext = false;
     }
 
   } catch (error: any) {
