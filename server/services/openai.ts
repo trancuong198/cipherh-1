@@ -170,7 +170,7 @@ ${logsText}`;
       // Use the context provided from Telegram which already has Vietnamese personality
       const systemPrompt = context 
         ? augmentSystemPrompt(context)
-        : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich.");
+        : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon, huu ich va LUON TIM CACH giup do. Khong tu choi ma tim giai phap.");
 
       const messages: { role: "system" | "user"; content: string }[] = [
         { role: "system", content: systemPrompt },
