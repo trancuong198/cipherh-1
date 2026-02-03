@@ -23,6 +23,7 @@ export class OpenAIService {
   private client: OpenAI | null = null;
   private configured: boolean = false;
   private model: string = "gpt-5";
+  private fallbackModels: string[] = ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -31,6 +32,8 @@ export class OpenAIService {
       this.client = new OpenAI({ apiKey });
       this.configured = true;
       console.log("OpenAIService: API key loaded, service ready");
+      console.log(`OpenAIService: Using model: ${this.model}`);
+      console.log(`OpenAIService: Fallback models: ${this.fallbackModels.join(", ")}`);
     } else {
       console.log("OpenAIService: No API key found, running in placeholder mode");
       console.log("OpenAIService: Set OPENAI_API_KEY environment variable to enable AI features");
@@ -159,34 +162,111 @@ ${logsText}`;
 
   async askQuestion(question: string, context?: string): Promise<string> {
     if (!this.configured || !this.client) {
-      return `Placeholder: Cau hoi "${question}" can OPENAI_API_KEY de tra loi`;
+      console.log(`[OpenAI] Not configured - returning placeholder response for: "${question}"`);
+      return `Xin loi, con chua duoc cau hinh OPENAI_API_KEY nen khong the tra loi. Vui long them OPENAI_API_KEY vao bien moi truong.`;
     }
 
     try {
-      const contextPrompt = "Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich.";
-      const systemPrompt = augmentSystemPrompt(contextPrompt);
+      // Use the context provided from Telegram which already has Vietnamese personality
+      const systemPrompt = context 
+        ? augmentSystemPrompt(context)
+        : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon, huu ich va LUON TIM CACH giup do. Khong tu choi ma tim giai phap.");
 
       const messages: { role: "system" | "user"; content: string }[] = [
         { role: "system", content: systemPrompt },
+        { role: "user", content: question },
       ];
 
-      if (context) {
-        messages.push({ role: "user", content: `Context: ${context}` });
-      }
-
-      messages.push({ role: "user", content: question });
+      console.log(`[OpenAI] Sending question to ${this.model}: "${question.substring(0, 50)}..."`);
 
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages,
         max_completion_tokens: 800,
+        temperature: 0.7,
       });
 
-      return response.choices[0].message.content || "No answer generated";
-    } catch (error) {
-      console.error("OpenAI question error:", error);
-      return "Error answering question";
+      console.log(`[OpenAI] Response received, choices: ${response.choices?.length || 0}`);
+      
+      if (!response.choices || response.choices.length === 0) {
+        console.error("[OpenAI] No choices in response:", JSON.stringify(response));
+        return "Xin loi, con khong nhan duoc phan hoi tu OpenAI. Co the API dang gap van de.";
+      }
+
+      const content = response.choices[0].message.content;
+      
+      if (!content || content.trim().length === 0) {
+        console.error("[OpenAI] Empty content in response");
+        return "Xin loi, con nhan duoc phan hoi trong tu OpenAI. Cha thu hoi lai cau hoi voi noi dung cu the hon nhe.";
+      }
+
+      console.log(`[OpenAI] Successfully generated response (${content.length} chars)`);
+      return content;
+    } catch (error: any) {
+      console.error("[OpenAI] Question error:", error);
+      console.error("[OpenAI] Error details:", {
+        message: error.message,
+        type: error.type,
+        code: error.code,
+        status: error.status,
+      });
+      
+      // Try fallback models if primary model fails
+      if (error.code === 'model_not_found' && this.fallbackModels.length > 0) {
+        console.log(`[OpenAI] Model ${this.model} not found, trying fallback models...`);
+        return await this.askQuestionWithFallback(question, context);
+      }
+      
+      // Provide more specific error messages in Vietnamese
+      if (error.code === 'invalid_api_key') {
+        return "Xin loi, OPENAI_API_KEY khong hop le. Vui long kiem tra lai API key.";
+      } else if (error.code === 'insufficient_quota') {
+        return "Xin loi, tai khoan OpenAI da het quota. Vui long nap them credit.";
+      } else if (error.code === 'model_not_found') {
+        return `Xin loi, model "${this.model}" khong ton tai va khong co fallback model nao. Vui long cap nhat model name.`;
+      } else if (error.status === 429) {
+        return "Xin loi, OpenAI dang qua tai. Vui long thu lai sau vai giay.";
+      } else {
+        return `Xin loi, co loi khi ket noi OpenAI: ${error.message || 'Unknown error'}`;
+      }
     }
+  }
+
+  private async askQuestionWithFallback(question: string, context?: string): Promise<string> {
+    for (const fallbackModel of this.fallbackModels) {
+      try {
+        console.log(`[OpenAI] Trying fallback model: ${fallbackModel}`);
+        
+        const systemPrompt = context 
+          ? augmentSystemPrompt(context)
+          : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich.");
+
+        const messages: { role: "system" | "user"; content: string }[] = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: question },
+        ];
+
+        const response = await this.client!.chat.completions.create({
+          model: fallbackModel,
+          messages,
+          max_completion_tokens: 800,
+          temperature: 0.7,
+        });
+
+        if (response.choices && response.choices.length > 0 && response.choices[0].message.content) {
+          console.log(`[OpenAI] Success with fallback model: ${fallbackModel}`);
+          // Update primary model to the working one
+          this.model = fallbackModel;
+          console.log(`[OpenAI] Permanently switched to model: ${fallbackModel}`);
+          return response.choices[0].message.content;
+        }
+      } catch (error: any) {
+        console.log(`[OpenAI] Fallback model ${fallbackModel} also failed: ${error.message}`);
+        continue;
+      }
+    }
+    
+    return `Xin loi, tat ca cac model deu khong hoat dong. Vui long kiem tra API key va quota cua ban.`;
   }
 
   // Refresh connection (useful after env vars are updated)
@@ -222,14 +302,45 @@ ${logsText}`;
     }
 
     try {
+      console.log(`[OpenAI] Testing connection with model: ${this.model}`);
       const response = await this.client.chat.completions.create({
         model: this.model,
-        messages: [{ role: "user", content: "ping" }],
+        messages: [{ role: "user", content: "Test connection" }],
         max_completion_tokens: 5,
       });
-      return !!response.choices[0];
+      
+      if (response.choices && response.choices.length > 0) {
+        console.log(`[OpenAI] Connection test successful with model: ${this.model}`);
+        return true;
+      }
+      return false;
     } catch (error: any) {
-      console.error("OpenAI connection test failed:", error.message);
+      console.error(`[OpenAI] Connection test failed with ${this.model}:`, error.message);
+      
+      // Try fallback models
+      if (error.code === 'model_not_found') {
+        console.log('[OpenAI] Trying fallback models for connection test...');
+        for (const fallbackModel of this.fallbackModels) {
+          try {
+            const response = await this.client.chat.completions.create({
+              model: fallbackModel,
+              messages: [{ role: "user", content: "Test connection" }],
+              max_completion_tokens: 5,
+            });
+            
+            if (response.choices && response.choices.length > 0) {
+              console.log(`[OpenAI] Connection successful with fallback model: ${fallbackModel}`);
+              this.model = fallbackModel;
+              console.log(`[OpenAI] Switched to working model: ${fallbackModel}`);
+              return true;
+            }
+          } catch (fbError: any) {
+            console.log(`[OpenAI] Fallback model ${fallbackModel} failed: ${fbError.message}`);
+            continue;
+          }
+        }
+      }
+      
       return false;
     }
   }

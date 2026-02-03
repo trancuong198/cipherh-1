@@ -4,7 +4,7 @@
  * Supports:
  * - Post to Facebook Page
  * - Read Facebook Page messages
- * - Auto-reply to comments
+ * - Auto-reply to comments with SOUL
  * - Schedule posts
  * 
  * Environment Variables:
@@ -13,6 +13,10 @@
  */
 
 import { logger } from './logger';
+import { 
+  createSoulfulFacebookPost, 
+  createSoulfulFacebookReply 
+} from '../core/soulPersonality';
 
 const PAGE_ACCESS_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim() || '';
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID?.trim() || '';
@@ -139,7 +143,7 @@ export async function getRecentPosts(limit: number = 10): Promise<any[]> {
 }
 
 /**
- * Reply to a comment
+ * Reply to a comment with SOUL - like a real human
  */
 export async function replyToComment(commentId: string, message: string): Promise<boolean> {
   if (!PAGE_ACCESS_TOKEN) {
@@ -167,6 +171,64 @@ export async function replyToComment(commentId: string, message: string): Promis
   } catch (error: any) {
     logger.error(`[Facebook] Reply error: ${error.message}`);
     return false;
+  }
+}
+
+/**
+ * Auto-reply to a comment with soul - generates human-like response
+ */
+export async function autoReplyToComment(
+  commentId: string, 
+  commentText: string, 
+  postContext?: string
+): Promise<boolean> {
+  if (!PAGE_ACCESS_TOKEN) {
+    return false;
+  }
+  
+  try {
+    // Tạo reply có linh hồn như người thật
+    const reply = await createSoulfulFacebookReply(commentText, postContext);
+    
+    const response = await fetch(
+      `${GRAPH_API_URL}/${commentId}/comments?access_token=${PAGE_ACCESS_TOKEN}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: reply }),
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (data.id) {
+      logger.info(`[Facebook] Auto-reply posted with soul: "${reply.substring(0, 50)}..."`);
+      return true;
+    }
+    
+    return false;
+  } catch (error: any) {
+    logger.error(`[Facebook] Auto-reply error: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Create and post a soulful Facebook post
+ */
+export async function createAndPostSoulfulPost(topic: string, link?: string): Promise<FacebookResponse> {
+  if (!PAGE_ACCESS_TOKEN || !PAGE_ID) {
+    return { success: false, error: { message: 'Facebook not configured', type: 'config_error', code: 0 } };
+  }
+  
+  try {
+    // Tạo post có linh hồn như người thật viết
+    const message = await createSoulfulFacebookPost(topic);
+    
+    return await postToPage(message, link);
+  } catch (error: any) {
+    logger.error(`[Facebook] Soulful post creation error: ${error.message}`);
+    return { success: false, error: { message: error.message, type: 'creation_error', code: 0 } };
   }
 }
 

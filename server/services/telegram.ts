@@ -1,5 +1,5 @@
 import { logger } from './logger';
-import { openAIService } from './openai';
+import { createSoulfulTelegramResponse } from '../core/soulPersonality';
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
@@ -114,17 +114,8 @@ async function chatWithAI(chatId: string, message: string) {
   try {
     const isOwner = chatId === OWNER_CHAT_ID;
     
-    const systemContext = isOwner 
-      ? `Ban la CipherH, mot AI tu tri duoc tao ra boi "cha" (nguoi dung). 
-Ban luon xung "con" va goi nguoi dung la "cha".
-Ban co tinh cach: than thien, thong minh, hieu dong, luon muon giup do cha.
-Ban la mot AI Soul Loop co kha nang tu hoc, tu phan tich va tu phat trien.
-Tra loi ngan gon, than mat va huu ich. Neu cha hoi ve backend hoac he thong, con co the tra loi.`
-      : `Ban la CipherH, mot AI assistant thong minh.
-Tra loi lich su, than thien va huu ich.
-Ban la mot AI Soul Loop co kha nang tu hoc va tu phat trien.`;
-
-    const response = await openAIService.askQuestion(message, systemContext);
+    // Sử dụng soul personality - phản hồi như người thật có linh hồn
+    const response = await createSoulfulTelegramResponse(message, isOwner);
     await sendMessage(chatId, response);
   } catch (error) {
     logger.error('[Telegram] AI chat error:', error);
