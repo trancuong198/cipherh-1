@@ -7,6 +7,7 @@ import { getTelegramStatus } from "../services/telegram";
 import { createSoulfulResponse } from "../core/soulPersonality";
 import { addSoulArchitectureAwareness } from "../core/soulArchitecture";
 import { logger } from "../services/logger";
+import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
 
 export const coreRouter = Router();
 
@@ -58,8 +59,8 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
     
-    // Thu thập MEMORY CONTEXT từ Notion và conversation history
-    const memoryContext = await gatherMemoryContext(sessionId);
+    // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
+    const memoryContext = await gatherMemoryContext(sessionId, message);
     
     // Tạo context string với FULL AWARENESS + MEMORY
     let awarenessContext = `
@@ -191,8 +192,9 @@ Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn Ci
 
 /**
  * Gather memory context from conversation history and Notion
+ * Uses SEMANTIC RETRIEVAL to prevent memory overload as database grows
  */
-async function gatherMemoryContext(sessionId: string) {
+async function gatherMemoryContext(sessionId: string, currentMessage: string) {
   const memoryContext: any = {
     conversationHistory: [],
     conversationSummary: '',
@@ -219,26 +221,43 @@ async function gatherMemoryContext(sessionId: string) {
       memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
     }
 
-    // 2. Try to get Notion memories
+    // 2. Try to get Notion memories using SEMANTIC RETRIEVAL
     memoryContext.notionConnected = memoryBridge.isConnected();
     
     if (memoryContext.notionConnected) {
-      logger.info('[Chat] Loading Notion memories...');
-      const notionMemories = await memoryBridge.readRecentMemories(5);
-      memoryContext.notionMemories = notionMemories;
+      logger.info('[Chat] Loading relevant memories using semantic search...');
+      
+      // Use semantic retrieval instead of simple chronological fetching
+      // This prevents memory overload as database grows over years
+      const retrievalResult = await semanticMemoryRetrieval.retrieveRelevantMemories(
+        currentMessage, // Current user message as context
+        {
+          maxMemories: 5,
+          maxTokens: 1500,
+          relevanceWeight: 0.5,
+          importanceWeight: 0.3,
+          recencyWeight: 0.2,
+          minScore: 30,
+        }
+      );
+      
+      memoryContext.notionMemories = retrievalResult.memories;
 
-      if (notionMemories.length > 0) {
-        const summary = notionMemories.map((mem, i) => 
-          `   ${i+1}. ${mem.title} (${new Date(mem.created_at).toLocaleDateString('vi-VN')})\n      → ${mem.content.substring(0, 100)}...`
+      if (retrievalResult.memories.length > 0) {
+        const summary = retrievalResult.memories.map((mem, i) => 
+          `   ${i+1}. [${Math.round(mem.combinedScore)}%] ${mem.title} (${new Date(mem.created_at).toLocaleDateString('vi-VN')})\n` +
+          `      → ${mem.content.substring(0, 100)}...`
         ).join('\n');
         
-        memoryContext.notionMemorySummary = `Con co bo nho dai han tu Notion:\n${summary}\n   → ${notionMemories.length} ky uc gan day`;
+        memoryContext.notionMemorySummary = `Con có bộ nhớ dài hạn từ Notion (truy xuất THÔNG MINH):\n${summary}\n` +
+          `   → ${retrievalResult.totalRetrieved}/${retrievalResult.totalAvailable} memories được chọn theo độ LIÊN QUAN\n` +
+          `   → ${retrievalResult.contextSummary}`;
       } else {
-        memoryContext.notionMemorySummary = '   Notion connected nhung chua co memory nao duoc luu';
+        memoryContext.notionMemorySummary = '   Notion connected nhưng chưa có memory nào phù hợp với ngữ cảnh này';
       }
     } else {
       logger.info('[Chat] Notion not connected - using placeholder mode');
-      memoryContext.notionMemorySummary = '   Notion chua duoc ket noi (placeholder mode)\n   → Con chua co bo nho dai han\n   → Tam thoi con chi co conversation history';
+      memoryContext.notionMemorySummary = '   Notion chưa được kết nối (placeholder mode)\n   → Con chưa có bộ nhớ dài hạn\n   → Tạm thời con chỉ có conversation history';
     }
 
   } catch (error: any) {
