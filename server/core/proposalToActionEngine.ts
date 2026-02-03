@@ -14,6 +14,8 @@ import { financialCore } from './financialCore';
 import { actionsEngine, type Action, type ActionResult } from './actionsEngine';
 import { emotionalCore } from './emotionalCore';
 import { memoryBridge } from './memory';
+import { autonomousResearch } from './autonomousResearch';
+import { escalationProtocol } from './escalationProtocol';
 import * as fs from 'fs';
 
 // ================================================
@@ -407,6 +409,46 @@ class ProposalToActionEngine {
     logger.info(`[ProposalToAction] Executing: ${proposal.proposedAction.description}`);
 
     try {
+      // Check if we need more information before executing
+      const needsResearch = autonomousResearch.shouldResearch({
+        topic: proposal.opportunity.description,
+        confidence: proposal.opportunity.confidence,
+        missingInfo: proposal.opportunity.confidence < 0.7,
+      });
+
+      if (needsResearch.needed) {
+        logger.info(`[ProposalToAction] Research needed: ${needsResearch.reason}`);
+        
+        try {
+          const research = await autonomousResearch.research(
+            needsResearch.suggestedQuery,
+            `Proposal needs more information: ${proposal.opportunity.description}`,
+            'proposal-generation'
+          );
+          
+          logger.info(`[ProposalToAction] Research completed: ${research.insights.length} insights, ${research.confidence}% confidence`);
+          
+          // If research confidence low, escalate
+          if (research.confidence < 70) {
+            logger.warn(`[ProposalToAction] Research confidence low - escalating to owner`);
+            
+            await escalationProtocol.escalateDecision(
+              `Should we proceed with: ${proposal.proposedAction.description}?`,
+              `Research completed but confidence is only ${research.confidence}%`,
+              ['Proceed anyway', 'Need more information', 'Cancel proposal']
+            );
+            
+            proposal.status = 'blocked';
+            proposal.blockReason = 'Low confidence after research - awaiting owner decision';
+            this.saveState();
+            return;
+          }
+        } catch (error) {
+          logger.error(`[ProposalToAction] Research failed: ${error}`);
+          // Continue with execution anyway
+        }
+      }
+
       const result = await actionsEngine.execute(proposal.proposedAction);
       
       proposal.executionResult = result;
@@ -473,6 +515,42 @@ class ProposalToActionEngine {
    */
   private async emergencySelfAssessment(): Promise<void> {
     logger.warn('[ProposalToAction] Running emergency self-assessment');
+
+    // Trigger self-diagnostics
+    try {
+      const { selfDiagnostics } = await import('./selfDiagnostics');
+      const diagnostics = await selfDiagnostics.diagnose();
+      
+      logger.warn(`[ProposalToAction] Health: ${diagnostics.overallHealth}`);
+      logger.warn(`[ProposalToAction] Blockers: ${diagnostics.blockers.length}`);
+      
+      // Autonomous research on "why stuck"
+      const research = await autonomousResearch.research(
+        'Why would an AGI system get stuck without taking actions? How to resolve?',
+        'System stuck - no actions for 3+ cycles',
+        'self-diagnosis'
+      );
+      
+      logger.info(`[ProposalToAction] Research completed: ${research.insights.length} insights`);
+      
+      // Escalate to owner
+      await escalationProtocol.escalate(
+        'critical-failure',
+        'System Stuck - No Actions for 3+ Cycles',
+        `The system has gone ${this.state.consecutiveNoActionCycles} cycles without taking any action. This indicates a critical problem.`,
+        {
+          priority: 'urgent',
+          context: {
+            diagnostics,
+            research: [research],
+          },
+          recommendations: research.actionableRecommendations,
+          question: 'How should I proceed? What actions should I prioritize?',
+        }
+      );
+    } catch (error) {
+      logger.error(`[ProposalToAction] Emergency assessment failed: ${error}`);
+    }
 
     const assessment = {
       timestamp: new Date().toISOString(),
