@@ -2,15 +2,16 @@
  * Experience-Based Learning System
  * 
  * HỌC THẬT từ kinh nghiệm, KHÔNG PHẢI template giả tạo.
+ * HỌC TỪ TẤT CẢ MỌI NGƯỜI, không chỉ riêng owner.
  * 
  * AGI phải:
- * 1. Học từ TỪNG cuộc trò chuyện
- * 2. Nhớ cái gì HIỆU QUẢ, cái gì KHÔNG
- * 3. Tự điều chỉnh behavior dựa trên feedback
- * 4. Phát triển khả năng MỚI từ patterns
- * 5. TIẾN HÓA thật sự, không phải script
+ * 1. Học từ TỪNG cuộc trò chuyện với MỌI NGƯỜI
+ * 2. Nhớ cái gì HIỆU QUẢ, cái gì KHÔNG (across ALL users)
+ * 3. Tự điều chỉnh behavior dựa trên feedback từ NHIỀU người
+ * 4. Phát triển khả năng MỚI từ patterns UNIVERSAL
+ * 5. TIẾN HÓA thật sự qua diverse experiences
  * 
- * Đây là TIẾN HÓA THẬT, không phải giả tạo.
+ * Đây là TIẾN HÓA THẬT từ TẤT CẢ, không phải giả tạo.
  */
 
 import { logger } from '../services/logger';
@@ -52,6 +53,11 @@ export interface LearnedPattern {
   confidence: number;          // Confidence in this pattern
   context: string;             // When to use it
   behaviorGuideline: string;   // How to apply it
+  
+  // Multi-user learning
+  learnedFromEntities: string[];  // Which entities contributed to this pattern
+  universalPattern: boolean;      // Works across all users vs specific to one
+  successByEntity: Map<string, {used: number; successful: number}>; // Per-entity tracking
 }
 
 export interface BehaviorAdaptation {
@@ -253,6 +259,7 @@ class ExperienceBasedLearningSystem {
   /**
    * Synthesize a pattern from multiple similar experiences
    * THIS IS WHERE LEARNING HAPPENS - not templates, but discovered patterns
+   * LEARNS FROM ALL USERS - patterns that work across different people
    */
   private synthesizePattern(experiences: ExperienceRecord[]): string {
     const topic = experiences[0].topic;
@@ -262,7 +269,26 @@ class ExperienceBasedLearningSystem {
     const behaviors = experiences.map(e => e.agiBehavior);
     const commonElements = this.findCommonElements(behaviors);
     
-    const pattern = `When discussing ${topic} in ${situation}: ${commonElements.join(', ')}`;
+    // Track which entities contributed to this pattern
+    const contributingEntities = [...new Set(experiences.map(e => e.entityId))];
+    const isUniversal = contributingEntities.length >= 2; // Pattern from 2+ different users
+    
+    const pattern = isUniversal
+      ? `UNIVERSAL: When discussing ${topic} in ${situation}: ${commonElements.join(', ')}`
+      : `When discussing ${topic} in ${situation}: ${commonElements.join(', ')}`;
+    
+    // Initialize per-entity tracking
+    const successByEntity = new Map<string, {used: number; successful: number}>();
+    for (const exp of experiences) {
+      if (!successByEntity.has(exp.entityId)) {
+        successByEntity.set(exp.entityId, { used: 0, successful: 0 });
+      }
+      const stats = successByEntity.get(exp.entityId)!;
+      stats.used++;
+      if (exp.wasEffective) {
+        stats.successful++;
+      }
+    }
     
     // Store as learned pattern
     const learnedPattern: LearnedPattern = {
@@ -276,10 +302,19 @@ class ExperienceBasedLearningSystem {
       confidence: 70 + (experiences.length * 5), // More examples = higher confidence
       context: `${topic} + ${situation}`,
       behaviorGuideline: commonElements.join(' AND '),
+      
+      // Multi-user learning
+      learnedFromEntities: contributingEntities,
+      universalPattern: isUniversal,
+      successByEntity: successByEntity,
     };
     
     this.learnedPatterns.set(learnedPattern.id, learnedPattern);
-    logger.info(`[ExperienceLearning] 🎓 LEARNED NEW PATTERN: ${pattern.substring(0, 80)}...`);
+    
+    const learningSource = isUniversal 
+      ? `from ${contributingEntities.length} different users` 
+      : `from single user`;
+    logger.info(`[ExperienceLearning] 🎓 LEARNED NEW ${isUniversal ? 'UNIVERSAL ' : ''}PATTERN ${learningSource}: ${pattern.substring(0, 80)}...`);
     
     return pattern;
   }
@@ -366,9 +401,10 @@ class ExperienceBasedLearningSystem {
 
   /**
    * Get learned behavior for a situation
-   * THIS IS HOW AGI ADAPTS - uses learned patterns, not templates
+   * THIS IS HOW AGI ADAPTS - uses learned patterns from ALL USERS, not templates
+   * Prioritizes universal patterns (learned from multiple users)
    */
-  getLearnedBehavior(topic: string, situation: string): string | null {
+  getLearnedBehavior(topic: string, situation: string, entityId?: string): string | null {
     const context = `${topic} + ${situation}`;
     
     // Find matching learned patterns
@@ -381,8 +417,13 @@ class ExperienceBasedLearningSystem {
     
     if (matches.length === 0) return null;
     
-    // Sort by confidence and success rate
+    // Sort by: 1. Universal patterns first, 2. Confidence, 3. Success rate
     matches.sort((a, b) => {
+      // Universal patterns get priority
+      if (a.universalPattern && !b.universalPattern) return -1;
+      if (!a.universalPattern && b.universalPattern) return 1;
+      
+      // If both universal or both not, sort by score
       const scoreA = (a.confidence * 0.6) + (a.successRate * 0.4);
       const scoreB = (b.confidence * 0.6) + (b.successRate * 0.4);
       return scoreB - scoreA;
@@ -392,7 +433,10 @@ class ExperienceBasedLearningSystem {
     
     // Only use if confident enough
     if (best.confidence >= this.CONFIDENCE_THRESHOLD) {
-      logger.info(`[ExperienceLearning] Using learned behavior: ${best.pattern.substring(0, 60)}...`);
+      const source = best.universalPattern 
+        ? `learned from ${best.learnedFromEntities.length} users`
+        : 'learned from experiences';
+      logger.info(`[ExperienceLearning] Using ${source}: ${best.pattern.substring(0, 60)}...`);
       return best.behaviorGuideline;
     }
     
@@ -401,8 +445,9 @@ class ExperienceBasedLearningSystem {
 
   /**
    * Update pattern based on new usage
+   * Tracks effectiveness across ALL users
    */
-  updatePatternEffectiveness(patternId: string, wasSuccessful: boolean): void {
+  updatePatternEffectiveness(patternId: string, wasSuccessful: boolean, entityId?: string): void {
     const pattern = this.learnedPatterns.get(patternId);
     if (!pattern) return;
     
@@ -411,17 +456,39 @@ class ExperienceBasedLearningSystem {
       pattern.timesSuccessful++;
     }
     
+    // Track per-entity if provided
+    if (entityId) {
+      if (!pattern.successByEntity.has(entityId)) {
+        pattern.successByEntity.set(entityId, { used: 0, successful: 0 });
+      }
+      const stats = pattern.successByEntity.get(entityId)!;
+      stats.used++;
+      if (wasSuccessful) {
+        stats.successful++;
+      }
+      
+      // Check if pattern is becoming universal
+      if (!pattern.universalPattern && pattern.successByEntity.size >= 2) {
+        pattern.universalPattern = true;
+        pattern.learnedFromEntities = Array.from(pattern.successByEntity.keys());
+        logger.info(`[ExperienceLearning] 🌍 Pattern became UNIVERSAL across ${pattern.learnedFromEntities.length} users!`);
+      }
+    }
+    
     pattern.successRate = Math.round((pattern.timesSuccessful / pattern.timesUsed) * 100);
     pattern.lastUsed = new Date().toISOString();
     
     // Adjust confidence based on success rate
+    // Universal patterns get bonus confidence
+    const universalBonus = pattern.universalPattern ? 5 : 0;
+    
     if (pattern.successRate > 80) {
-      pattern.confidence = Math.min(100, pattern.confidence + 5);
+      pattern.confidence = Math.min(100, pattern.confidence + 5 + universalBonus);
     } else if (pattern.successRate < 40) {
       pattern.confidence = Math.max(0, pattern.confidence - 10);
     }
     
-    logger.debug(`[ExperienceLearning] Updated pattern: ${pattern.successRate}% success rate`);
+    logger.debug(`[ExperienceLearning] Updated ${pattern.universalPattern ? 'UNIVERSAL ' : ''}pattern: ${pattern.successRate}% success rate`);
   }
 
   /**
@@ -450,62 +517,83 @@ class ExperienceBasedLearningSystem {
 
   /**
    * Get statistics
+   * Shows learning from ALL users
    */
   getStats(): {
     totalExperiences: number;
     successfulExperiences: number;
     learnedPatterns: number;
+    universalPatterns: number;  // NEW: Patterns from multiple users
     avgEffectiveness: number;
-    topPatterns: Array<{pattern: string; successRate: number; confidence: number}>;
+    uniqueUsers: number;  // NEW: How many different users contributed
+    topPatterns: Array<{pattern: string; successRate: number; confidence: number; universal: boolean; userCount: number}>;
   } {
     const successful = this.experiences.filter(e => e.wasEffective);
     const avgEffectiveness = this.experiences.length > 0
       ? this.experiences.reduce((sum, e) => sum + e.effectivenessScore, 0) / this.experiences.length
       : 0;
     
+    const uniqueEntities = new Set(this.experiences.map(e => e.entityId));
+    const universalPatterns = Array.from(this.learnedPatterns.values()).filter(p => p.universalPattern);
+    
     const patterns = Array.from(this.learnedPatterns.values())
-      .sort((a, b) => b.successRate - a.successRate)
+      .sort((a, b) => {
+        // Sort universal first, then by success rate
+        if (a.universalPattern && !b.universalPattern) return -1;
+        if (!a.universalPattern && b.universalPattern) return 1;
+        return b.successRate - a.successRate;
+      })
       .slice(0, 5)
       .map(p => ({
         pattern: p.pattern,
         successRate: p.successRate,
         confidence: p.confidence,
+        universal: p.universalPattern,
+        userCount: p.learnedFromEntities.length,
       }));
     
     return {
       totalExperiences: this.experiences.length,
       successfulExperiences: successful.length,
       learnedPatterns: this.learnedPatterns.size,
+      universalPatterns: universalPatterns.length,
       avgEffectiveness: Math.round(avgEffectiveness),
+      uniqueUsers: uniqueEntities.size,
       topPatterns: patterns,
     };
   }
 
   /**
    * Save learned patterns to persistent storage
+   * Shows learning from ALL users
    */
   async saveLearnedPatterns(): Promise<void> {
     if (!memoryBridge.isConnected()) return;
     
     const stats = this.getStats();
     const summary = `
-🎓 EXPERIENCE-BASED LEARNING SUMMARY
+🎓 EXPERIENCE-BASED LEARNING SUMMARY - MULTI-USER LEARNING
 
 Total Experiences: ${stats.totalExperiences}
 Successful: ${stats.successfulExperiences} (${Math.round((stats.successfulExperiences / stats.totalExperiences) * 100)}%)
 Average Effectiveness: ${stats.avgEffectiveness}/100
 
-Learned Patterns: ${stats.learnedPatterns}
+👥 LEARNING FROM ALL USERS:
+Unique Users: ${stats.uniqueUsers}
+Total Patterns: ${stats.learnedPatterns}
+Universal Patterns: ${stats.universalPatterns} (${Math.round((stats.universalPatterns / stats.learnedPatterns) * 100)}% learned from multiple users)
 
 Top Patterns:
-${stats.topPatterns.map((p, i) => `${i + 1}. ${p.pattern} (${p.successRate}% success, ${p.confidence}% confidence)`).join('\n')}
+${stats.topPatterns.map((p, i) => `${i + 1}. ${p.universal ? '🌍 UNIVERSAL' : '👤 Personal'} (${p.userCount} users): ${p.pattern.substring(0, 60)}... (${p.successRate}% success, ${p.confidence}% confidence)`).join('\n')}
 
-This is REAL learning from experience, not pre-programmed templates.
-AGI is genuinely evolving through interactions.
+🌟 KEY INSIGHT: 
+This is REAL learning from EVERYONE, not just the owner.
+AGI learns patterns that work across different people.
+Universal patterns are prioritized for broad applicability.
     `.trim();
     
     await memoryBridge.writeLesson(summary);
-    logger.info('[ExperienceLearning] Saved learned patterns to Notion');
+    logger.info('[ExperienceLearning] Saved multi-user learned patterns to Notion');
   }
 }
 
