@@ -13,13 +13,7 @@ import {
 import OpenAI from 'openai';
 import { logger } from '../services/logger';
 import { getCipherHSystemPrompt, augmentSystemPrompt } from '../core/systemPrompt';
-
-// Helper function to check if a model is a reasoning model that doesn't support custom temperature
-function isReasoningModel(model: string): boolean {
-  // Reasoning models (o1, o3, gpt-5) only support default temperature value of 1
-  const reasoningModelPrefixes = ['o1', 'o3', 'gpt-5'];
-  return reasoningModelPrefixes.some(prefix => model.toLowerCase().startsWith(prefix));
-}
+import { isReasoningModel } from '../utils/modelHelpers';
 
 class OpenAIProvider implements ILLMProvider {
   id = 'openai';
@@ -140,7 +134,7 @@ class OpenAIProvider implements ILLMProvider {
       const modelToUse = 'gpt-4o';
       
       // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
-      const completionOptions: any = {
+      const completionOptions: OpenAI.Chat.CompletionCreateParamsNonStreaming = {
         model: modelToUse,
         messages,
         max_tokens: request.maxTokens || 1000,
