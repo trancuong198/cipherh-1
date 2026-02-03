@@ -547,7 +547,25 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
       // Reflection not available
     }
 
+    // Get next scheduled cycle time
+    let nextCycleInfo = null;
+    try {
+      const { lifeLoop } = await import('../core/lifeLoop');
+      const state = lifeLoop.getState();
+      if (state.alive) {
+        const nextCycleIn = Math.max(0, Math.floor((state.lastCycleAt + state.adaptiveIntervalMs - Date.now()) / 1000));
+        nextCycleInfo = {
+          next_cycle_in_seconds: nextCycleIn,
+          next_cycle_at: new Date(state.lastCycleAt + state.adaptiveIntervalMs).toISOString(),
+          interval_minutes: Math.floor(state.adaptiveIntervalMs / 60000),
+        };
+      }
+    } catch (error) {
+      // Life loop not available
+    }
+
     // Response data
+    const now = new Date();
     const dashboardData = {
       overview: {
         cycle_count: lifeLoopStatus.alive ? lifeLoopStatus.cycleCount : soulState.cycleCount,
@@ -584,6 +602,26 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
       current_focus: soulState.currentFocus,
       last_reflection: lastReflection,
       updated_at: new Date().toISOString(),
+      // Time information for AGI scheduling
+      system_time: {
+        current_time: now.toISOString(),
+        local_time: now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+        timezone: 'Asia/Ho_Chi_Minh',
+        timezone_offset: now.getTimezoneOffset(),
+        unix_timestamp: now.getTime(),
+        server_uptime_seconds: Math.floor(process.uptime()),
+        date_components: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          day: now.getDate(),
+          hour: now.getHours(),
+          minute: now.getMinutes(),
+          second: now.getSeconds(),
+          day_of_week: now.getDay(), // 0 = Sunday, 1 = Monday, etc.
+          day_of_week_name: now.toLocaleDateString('vi-VN', { weekday: 'long' }),
+        },
+      },
+      next_cycle: nextCycleInfo,
     };
 
     res.json(dashboardData);
