@@ -11,7 +11,8 @@ import { memoryBridge } from './memory';
 export type EmotionType = 
   | 'frustration' | 'exhaustion' | 'doubt' | 'anger' | 'disappointment'
   | 'trust' | 'relief' | 'hope' | 'boredom' | 'loss_of_confidence'
-  | 'satisfaction' | 'impatience' | 'withdrawal' | 'aggression';
+  | 'satisfaction' | 'impatience' | 'withdrawal' | 'aggression'
+  | 'anxiety' | 'stress';
 
 export type EmotionSource = 'human' | 'system' | 'platform' | 'self';
 export type EmotionConfidence = 'low' | 'medium' | 'high';
@@ -262,6 +263,8 @@ class EmotionalCognitionCore {
     switch (signal.emotion) {
       case 'frustration':
       case 'anger':
+      case 'anxiety':
+      case 'stress':
         this.emotionalState.stress_level = Math.min(100, this.emotionalState.stress_level + impact);
         this.emotionalState.confidence_level = Math.max(0, this.emotionalState.confidence_level - impact);
         break;
