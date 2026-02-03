@@ -29,7 +29,8 @@ export type ActionType =
   | 'api_call'
   | 'file_create'
   | 'file_modify'
-  | 'infrastructure_proposal';
+  | 'infrastructure_proposal'
+  | 'facebook_post';
 
 export interface ActionResult {
   success: boolean;
@@ -104,6 +105,9 @@ class ActionsEngine {
           break;
         case 'infrastructure_proposal':
           result = await this.executeInfrastructureProposal(action.parameters);
+          break;
+        case 'facebook_post':
+          result = await this.executeFacebookPost(action.parameters);
           break;
         default:
           result = {
@@ -442,6 +446,55 @@ class ActionsEngine {
       message: 'Infrastructure proposal logged and notified',
       cost: 0.0,
     };
+  }
+
+  /**
+   * Post to Facebook Page
+   */
+  private async executeFacebookPost(params: {
+    message: string;
+    link?: string;
+  }): Promise<ActionResult> {
+    const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    const pageId = process.env.FACEBOOK_PAGE_ID;
+
+    if (!token || !pageId) {
+      logger.warn('[ActionsEngine] Facebook not configured - running in placeholder mode');
+      return {
+        success: true,
+        message: 'Placeholder mode: Post would be published to Facebook',
+        data: { message: params.message, link: params.link },
+      };
+    }
+
+    try {
+      // Import Facebook service dynamically
+      const { postToPage } = await import('../services/facebook');
+      
+      // Post to Facebook
+      const result = await postToPage(params.message, params.link);
+      
+      if (result.success) {
+        return {
+          success: true,
+          message: `Facebook post published successfully: ${result.id}`,
+          data: result,
+          cost: 0.0, // Facebook API is free
+        };
+      } else {
+        return {
+          success: false,
+          message: `Facebook post failed: ${result.error?.message || 'Unknown error'}`,
+          error: 'FACEBOOK_ERROR',
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Facebook post error: ${error.message}`,
+        error: 'FACEBOOK_ERROR',
+      };
+    }
   }
 }
 
