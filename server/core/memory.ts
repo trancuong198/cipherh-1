@@ -322,6 +322,35 @@ export class MemoryBridge {
     // Could be enhanced to cache recent lessons or query Notion
     return [];
   }
+
+  /**
+   * Log action result to memory
+   * @param result The action result to log
+   * @returns Promise that resolves to true if successful, false otherwise
+   * 
+   * This logs actions taken by the system for later reflection and learning.
+   * The data is written to Notion as a lesson entry.
+   */
+  async logActionResult(result: {
+    action: string;
+    success: boolean;
+    reason: string;
+    timestamp: string;
+    cost?: number;
+  }): Promise<boolean> {
+    try {
+      const logEntry = `[ACTION LOG] ${result.timestamp}
+Action: ${result.action}
+Success: ${result.success ? 'Yes' : 'No'}
+Reason: ${result.reason}${result.cost !== undefined ? `\nCost: $${result.cost}` : ''}`;
+
+      // Write to Notion as a lesson
+      return await this.writeLesson(logEntry);
+    } catch (error) {
+      console.error('[MemoryBridge] Failed to log action result:', error);
+      return false;
+    }
+  }
 }
 
 export const memoryBridge = new MemoryBridge();
