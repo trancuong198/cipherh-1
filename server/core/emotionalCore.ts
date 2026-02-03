@@ -11,7 +11,8 @@ import { memoryBridge } from './memory';
 export type EmotionType = 
   | 'frustration' | 'exhaustion' | 'doubt' | 'anger' | 'disappointment'
   | 'trust' | 'relief' | 'hope' | 'boredom' | 'loss_of_confidence'
-  | 'satisfaction' | 'impatience' | 'withdrawal' | 'aggression';
+  | 'satisfaction' | 'impatience' | 'withdrawal' | 'aggression'
+  | 'anxiety' | 'stress';
 
 export type EmotionSource = 'human' | 'system' | 'platform' | 'self';
 export type EmotionConfidence = 'low' | 'medium' | 'high';
@@ -100,6 +101,24 @@ class EmotionalCognitionCore {
   // ================================================
   // EMOTIONAL PERCEPTION
   // ================================================
+
+  /**
+   * Directly ingest an emotional signal into the system
+   */
+  ingestSignal(signal: EmotionalSignal): EmotionalSignal {
+    this.emotionalSignals.push(signal);
+
+    // Keep last 200 signals - only trim when we exceed 250 to reduce overhead
+    if (this.emotionalSignals.length > 250) {
+      this.emotionalSignals = this.emotionalSignals.slice(-200);
+    }
+
+    // Update internal state based on signal
+    this.updateInternalState(signal);
+
+    logger.info(`[EmotionalCore] ${signal.emotion} ingested from ${signal.source} (${signal.confidence})`);
+    return signal;
+  }
 
   inferEmotionFromMessage(message: string, context?: string): EmotionalSignal | null {
     const lower = message.toLowerCase();
@@ -244,6 +263,8 @@ class EmotionalCognitionCore {
     switch (signal.emotion) {
       case 'frustration':
       case 'anger':
+      case 'anxiety':
+      case 'stress':
         this.emotionalState.stress_level = Math.min(100, this.emotionalState.stress_level + impact);
         this.emotionalState.confidence_level = Math.max(0, this.emotionalState.confidence_level - impact);
         break;

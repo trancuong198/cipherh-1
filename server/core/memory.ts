@@ -291,6 +291,37 @@ export class MemoryBridge {
   async refreshConnection(): Promise<void> {
     await this.checkConnection();
   }
+
+  /**
+   * Get memory statistics
+   * @returns Memory statistics object
+   * 
+   * Note: This is a placeholder implementation that returns zero values.
+   * A full implementation would query Notion or maintain internal counters
+   * to provide accurate statistics.
+   */
+  getMemoryStats(): { rawMemoryCount: number; totalMemories: number } {
+    // Return placeholder stats since we can't easily count Notion records without querying
+    return {
+      rawMemoryCount: 0,
+      totalMemories: 0,
+    };
+  }
+
+  /**
+   * Get recent lessons from memory
+   * @param limit Maximum number of lessons to return (currently unused)
+   * @returns Array of recent lessons
+   * 
+   * Note: This is a placeholder implementation that returns an empty array.
+   * A full implementation would cache recent lessons or query Notion
+   * to provide actual lesson data.
+   */
+  getRecentLessons(limit: number = 10): any[] {
+    // This would require querying Notion, but for now return empty array
+    // Could be enhanced to cache recent lessons or query Notion
+    return [];
+  }
 }
 
 export const memoryBridge = new MemoryBridge();
