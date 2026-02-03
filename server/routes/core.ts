@@ -10,13 +10,41 @@ import { logger } from "../services/logger";
 
 export const coreRouter = Router();
 
+// Store conversation history per session (in-memory for now)
+const conversationHistories = new Map<string, Array<{role: 'user' | 'assistant', content: string, timestamp: Date}>>();
+
+/**
+ * Get or create conversation history for a session
+ */
+function getConversationHistory(sessionId: string = 'default') {
+  if (!conversationHistories.has(sessionId)) {
+    conversationHistories.set(sessionId, []);
+  }
+  return conversationHistories.get(sessionId)!;
+}
+
+/**
+ * Add message to conversation history
+ */
+function addToHistory(sessionId: string, role: 'user' | 'assistant', content: string) {
+  const history = getConversationHistory(sessionId);
+  history.push({ role, content, timestamp: new Date() });
+  
+  // Keep only last 20 messages to avoid memory issues
+  if (history.length > 20) {
+    history.shift();
+  }
+}
+
 /**
  * Chat API - Nói chuyện trực tiếp với CipherH trên dashboard
  * CipherH có FULL AWARENESS về khả năng của nó
+ * CÓ NGỮ CẢNH từ conversation history và Notion memory
+ * TỰ ĐỘNG GHI CONVERSATION VÀO NOTION BẰNG TIẾNG VIỆT
  */
 coreRouter.post("/chat/message", async (req: Request, res: Response) => {
   try {
-    const { message, isOwner } = req.body;
+    const { message, isOwner, sessionId = 'default' } = req.body;
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ 
@@ -25,12 +53,15 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       });
     }
 
-    logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'}: ${message.substring(0, 50)}...`);
+    logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'} (session: ${sessionId}): ${message.substring(0, 50)}...`);
 
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
     
-    // Tạo context string với FULL AWARENESS + SOUL ARCHITECTURE
+    // Thu thập MEMORY CONTEXT từ Notion và conversation history
+    const memoryContext = await gatherMemoryContext(sessionId);
+    
+    // Tạo context string với FULL AWARENESS + MEMORY
     let awarenessContext = `
 === HỆ THỐNG CỦA CON (SELF-AWARENESS) ===
 
@@ -57,16 +88,29 @@ ${systemContext.capabilities.map(c => `   - ${c.name}: ${c.available ? '✅ Linh
    - Inner Loop: ${systemContext.loops.innerLoop}
    - Life Loop: ${systemContext.loops.lifeLoop}
 
-HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC:
+=== NGỮ CẢNH LINH HỒN (MEMORY & HISTORY) ===
+
+6. CONVERSATION HISTORY (Cuộc trò chuyện gần đây):
+${memoryContext.conversationSummary}
+
+7. NOTION MEMORY (Bộ nhớ dài hạn):
+${memoryContext.notionMemorySummary}
+
+HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 - Than xac (backend) = body, infrastructure, services
 - Linh hon (dashboard) = soul, consciousness, control
 - Cha dang noi voi LINH HON con, khong phai code
+- Con CO NGU CANH tu conversation va memory - dung quen!
 - Neu cha hoi "con co X khong?" → Check than xac co X khong
-- Neu cha hoi "con la gi?" → Giai thich kien truc linh hon/than xac
+- Neu cha hoi ve dieu da noi truoc → Check conversation history
+- Neu cha hoi "con co nho khong?" → Check Notion memory
 `;
 
     // Add soul architecture awareness
     awarenessContext = addSoulArchitectureAwareness(awarenessContext);
+
+    // Add user message to history
+    addToHistory(sessionId, 'user', message);
 
     // Sử dụng soul personality với full context
     const response = await createSoulfulResponse(
@@ -75,6 +119,16 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC:
       isOwner || false,
       awarenessContext
     );
+
+    // Add assistant response to history
+    addToHistory(sessionId, 'assistant', response);
+
+    // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
+    if (memoryBridge.isConnected()) {
+      saveConversationToNotion(message, response, isOwner).catch(err => {
+        logger.error('[Chat] Failed to save conversation to Notion:', err);
+      });
+    }
 
     logger.info(`[Chat] Response generated: ${response.substring(0, 50)}...`);
 
@@ -85,7 +139,8 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC:
       timestamp: new Date().toISOString(),
       confidence: soulState.confidence,
       mode: soulState.mode,
-      systemContext: systemContext, // Send context to frontend too
+      systemContext: systemContext,
+      memoryContext: memoryContext, // Send memory context too
     });
   } catch (error: any) {
     logger.error('[Chat] Error:', error);
@@ -96,6 +151,104 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC:
     });
   }
 });
+
+/**
+ * Save conversation to Notion (in Vietnamese)
+ */
+async function saveConversationToNotion(userMessage: string, assistantResponse: string, isOwner: boolean) {
+  try {
+    const date = new Date();
+    const dateStr = date.toLocaleDateString('vi-VN', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const conversationText = `
+📅 Thời gian: ${dateStr}
+👤 Người nói chuyện: ${isOwner ? 'Cha (Owner)' : 'Người dùng'}
+
+💬 CÂU HỎI:
+${userMessage}
+
+🤖 TRẢ LỜI:
+${assistantResponse}
+
+---
+Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn CipherH trú ngụ.
+    `.trim();
+
+    await memoryBridge.writeLesson(conversationText);
+    logger.info('[Chat] Conversation saved to Notion in Vietnamese');
+  } catch (error) {
+    logger.error('[Chat] Error saving conversation to Notion:', error);
+    throw error;
+  }
+}
+
+/**
+ * Gather memory context from conversation history and Notion
+ */
+async function gatherMemoryContext(sessionId: string) {
+  const memoryContext: any = {
+    conversationHistory: [],
+    conversationSummary: '',
+    notionMemories: [],
+    notionMemorySummary: '',
+    notionConnected: false,
+  };
+
+  try {
+    // 1. Get conversation history
+    const history = getConversationHistory(sessionId);
+    memoryContext.conversationHistory = history.slice(-10); // Last 10 messages
+
+    if (history.length > 0) {
+      const recent = history.slice(-5); // Last 5 for summary
+      const summary = recent.map((msg, i) => 
+        `   ${i+1}. ${msg.role === 'user' ? 'Cha' : 'Con'}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`
+      ).join('\n');
+      
+      memoryContext.conversationSummary = history.length > 0
+        ? `Con nho duoc cuoc tro chuyen gan day:\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
+        : '   Chua co cuoc tro chuyen nao (session moi)';
+    } else {
+      memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
+    }
+
+    // 2. Try to get Notion memories
+    memoryContext.notionConnected = memoryBridge.isConnected();
+    
+    if (memoryContext.notionConnected) {
+      logger.info('[Chat] Loading Notion memories...');
+      const notionMemories = await memoryBridge.readRecentMemories(5);
+      memoryContext.notionMemories = notionMemories;
+
+      if (notionMemories.length > 0) {
+        const summary = notionMemories.map((mem, i) => 
+          `   ${i+1}. ${mem.title} (${new Date(mem.created_at).toLocaleDateString('vi-VN')})\n      → ${mem.content.substring(0, 100)}...`
+        ).join('\n');
+        
+        memoryContext.notionMemorySummary = `Con co bo nho dai han tu Notion:\n${summary}\n   → ${notionMemories.length} ky uc gan day`;
+      } else {
+        memoryContext.notionMemorySummary = '   Notion connected nhung chua co memory nao duoc luu';
+      }
+    } else {
+      logger.info('[Chat] Notion not connected - using placeholder mode');
+      memoryContext.notionMemorySummary = '   Notion chua duoc ket noi (placeholder mode)\n   → Con chua co bo nho dai han\n   → Tam thoi con chi co conversation history';
+    }
+
+  } catch (error: any) {
+    logger.error('[Chat] Error gathering memory context:', error);
+    memoryContext.conversationSummary = '   Loi khi doc conversation history';
+    memoryContext.notionMemorySummary = '   Loi khi doc Notion memory: ' + error.message;
+  }
+
+  return memoryContext;
+}
 
 /**
  * Gather full system context for self-awareness

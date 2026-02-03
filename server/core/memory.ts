@@ -42,29 +42,35 @@ export class MemoryBridge {
   async writeLesson(text: string): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log("[Placeholder] Writing lesson:", text.substring(0, 50) + "...");
+      console.log("[Placeholder] Ghi bài học:", text.substring(0, 50) + "...");
       return true;
     }
 
-    console.log(`Writing lesson to Notion: ${text.substring(0, 50)}...`);
+    console.log(`Đang ghi bài học vào Notion: ${text.substring(0, 50)}...`);
 
     try {
       const notion = await getUncachableNotionClient();
+      const today = new Date().toLocaleDateString('vi-VN', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
       await notion.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
           "tiêu đề": {
-            title: [{ text: { content: `[LESSON] ${new Date().toISOString().split('T')[0]}` } }]
+            title: [{ text: { content: `📚 BÀI HỌC - ${today}` } }]
           },
           "cipher h": {
             rich_text: [{ text: { content: text.substring(0, 2000) } }]
           }
         }
       });
-      console.log("Lesson written to Notion successfully");
+      console.log("✅ Bài học đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("Error writing lesson to Notion:", error);
+      console.error("❌ Lỗi khi ghi bài học vào Notion:", error);
       return false;
     }
   }
@@ -72,29 +78,35 @@ export class MemoryBridge {
   async writeDailySummary(summary: string): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log("[Placeholder] Writing daily summary:", summary.substring(0, 50) + "...");
+      console.log("[Placeholder] Ghi tóm tắt hàng ngày:", summary.substring(0, 50) + "...");
       return true;
     }
 
-    console.log(`Writing daily summary to Notion (${summary.length} chars)`);
+    console.log(`Đang ghi tóm tắt hàng ngày vào Notion (${summary.length} ký tự)`);
 
     try {
       const notion = await getUncachableNotionClient();
+      const today = new Date().toLocaleDateString('vi-VN', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
       await notion.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
           "tiêu đề": {
-            title: [{ text: { content: `[DAILY] ${new Date().toISOString().split('T')[0]}` } }]
+            title: [{ text: { content: `📊 TÓM TẮT NGÀY - ${today}` } }]
           },
           "cipher h": {
             rich_text: [{ text: { content: summary.substring(0, 2000) } }]
           }
         }
       });
-      console.log("Daily summary written to Notion");
+      console.log("✅ Tóm tắt ngày đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("Error writing daily summary to Notion:", error);
+      console.error("❌ Lỗi khi ghi tóm tắt ngày vào Notion:", error);
       return false;
     }
   }
@@ -102,39 +114,49 @@ export class MemoryBridge {
   async writeStateSnapshot(state: SoulStateExport): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Writing state snapshot: cycle=${state.cycle_count}, doubts=${state.doubts}`);
+      console.log(`[Placeholder] Ghi trạng thái: cycle=${state.cycle_count}, doubts=${state.doubts}`);
       return true;
     }
 
-    console.log(`Writing state snapshot to Notion (cycle=${state.cycle_count})`);
+    console.log(`Đang ghi trạng thái soul vào Notion (cycle=${state.cycle_count})`);
 
     try {
-      const stateText = JSON.stringify({
-        cycle: state.cycle_count,
-        mode: state.mode,
-        doubts: state.doubts,
-        confidence: state.confidence,
-        energy: state.energy_level,
-        focus: state.current_focus,
-        reflection: state.reflection
-      }, null, 2);
+      const stateText = `
+🔄 CHU KỲ: ${state.cycle_count}
+📍 CHẾ ĐỘ: ${state.mode}
+❓ NGHI NGỜ: ${state.doubts}%
+💪 TỰ TIN: ${state.confidence}%
+⚡ NĂNG LƯỢNG: ${state.energy_level}%
+🎯 TẬP TRUNG: ${state.current_focus || 'Chưa có'}
+
+💭 SUY NGẪM:
+${state.reflection || 'Chưa có suy ngẫm...'}
+      `.trim();
 
       const notion = await getUncachableNotionClient();
+      const today = new Date().toLocaleDateString('vi-VN', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
       await notion.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
           "tiêu đề": {
-            title: [{ text: { content: `[STATE] Cycle ${state.cycle_count}` } }]
+            title: [{ text: { content: `🧠 TRẠNG THÁI SOUL - Chu kỳ ${state.cycle_count} - ${today}` } }]
           },
           "cipher h": {
             rich_text: [{ text: { content: stateText.substring(0, 2000) } }]
           }
         }
       });
-      console.log("State snapshot written to Notion");
+      console.log("✅ Trạng thái soul đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("Error writing state snapshot to Notion:", error);
+      console.error("❌ Lỗi khi ghi trạng thái soul vào Notion:", error);
       return false;
     }
   }
@@ -142,29 +164,43 @@ export class MemoryBridge {
   async writeStrategyNote(note: string, strategyType: string = "general"): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Writing ${strategyType} strategy:`, note.substring(0, 50) + "...");
+      console.log(`[Placeholder] Ghi chiến lược ${strategyType}:`, note.substring(0, 50) + "...");
       return true;
     }
 
-    console.log(`Writing ${strategyType} strategy note to Notion`);
+    console.log(`Đang ghi chiến lược ${strategyType} vào Notion`);
 
     try {
       const notion = await getUncachableNotionClient();
+      const today = new Date().toLocaleDateString('vi-VN', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const strategyTypeVi: Record<string, string> = {
+        'general': 'TỔNG QUÁT',
+        'financial': 'TÀI CHÍNH',
+        'growth': 'PHÁT TRIỂN',
+        'survival': 'SINH TỒN',
+        'learning': 'HỌC TẬP'
+      };
+      
       await notion.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
           "tiêu đề": {
-            title: [{ text: { content: `[STRATEGY] ${strategyType.toUpperCase()} - ${new Date().toISOString().split('T')[0]}` } }]
+            title: [{ text: { content: `🎯 CHIẾN LƯỢC ${strategyTypeVi[strategyType] || strategyType.toUpperCase()} - ${today}` } }]
           },
           "cipher h": {
             rich_text: [{ text: { content: note.substring(0, 2000) } }]
           }
         }
       });
-      console.log("Strategy note written to Notion");
+      console.log("✅ Chiến lược đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("Error writing strategy note to Notion:", error);
+      console.error("❌ Lỗi khi ghi chiến lược vào Notion:", error);
       return false;
     }
   }
@@ -172,31 +208,46 @@ export class MemoryBridge {
   async storeReflection(reflectionText: string, metadata?: Record<string, unknown>): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Storing reflection:`, reflectionText.substring(0, 50) + "...");
+      console.log(`[Placeholder] Lưu suy ngẫm:`, reflectionText.substring(0, 50) + "...");
       return true;
     }
 
-    console.log(`Storing reflection to Notion (${reflectionText.length} chars)`);
+    console.log(`Đang lưu suy ngẫm vào Notion (${reflectionText.length} ký tự)`);
 
     try {
       const notion = await getUncachableNotionClient();
-      const metaStr = metadata ? `\n\nMetadata: ${JSON.stringify(metadata, null, 2)}` : '';
+      const today = new Date().toLocaleDateString('vi-VN', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      let contentText = `💭 SUY NGẪM:\n\n${reflectionText}`;
+      
+      if (metadata) {
+        contentText += `\n\n📋 THÔNG TIN BỔ SUNG:\n`;
+        for (const [key, value] of Object.entries(metadata)) {
+          contentText += `- ${key}: ${JSON.stringify(value)}\n`;
+        }
+      }
       
       await notion.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
           "tiêu đề": {
-            title: [{ text: { content: `[REFLECTION] ${new Date().toISOString().split('T')[0]}` } }]
+            title: [{ text: { content: `🤔 SUY NGẪM - ${today}` } }]
           },
           "cipher h": {
-            rich_text: [{ text: { content: (reflectionText + metaStr).substring(0, 2000) } }]
+            rich_text: [{ text: { content: contentText.substring(0, 2000) } }]
           }
         }
       });
-      console.log("Reflection stored to Notion");
+      console.log("✅ Suy ngẫm đã được lưu vào Notion");
       return true;
     } catch (error) {
-      console.error("Error storing reflection to Notion:", error);
+      console.error("❌ Lỗi khi lưu suy ngẫm vào Notion:", error);
       return false;
     }
   }
