@@ -2,6 +2,10 @@
 /**
  * Test Facebook Integration
  * 
+ * PREREQUISITES:
+ *   1. Build the project first: npm run build
+ *   2. The build creates dist/services/facebook.js
+ * 
  * Usage:
  *   node test-facebook.js "Your message here"
  * 
@@ -36,6 +40,18 @@ async function testFacebookPost() {
   console.log('✓ Token found:', token.substring(0, 20) + '...');
   console.log('✓ Page ID:', pageId);
   console.log('');
+  
+  // Check if build exists
+  const fs = await import('fs');
+  const buildPath = './dist/services/facebook.js';
+  if (!fs.existsSync(buildPath)) {
+    console.error('❌ Error: Build not found');
+    console.error('');
+    console.error('Please build the project first:');
+    console.error('  npm run build');
+    console.error('');
+    process.exit(1);
+  }
   
   // Import the Facebook service
   const { postToPage, init } = await import('./dist/services/facebook.js');
