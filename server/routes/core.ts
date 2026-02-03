@@ -8,6 +8,8 @@ import { createSoulfulResponse } from "../core/soulPersonality";
 import { addSoulArchitectureAwareness } from "../core/soulArchitecture";
 import { logger } from "../services/logger";
 import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
+import { entityMemorySystem } from "../core/entityMemory";
+import { episodicMemorySystem } from "../core/episodicMemory";
 
 export const coreRouter = Router();
 
@@ -113,6 +115,46 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
     // Add user message to history
     addToHistory(sessionId, 'user', message);
 
+    // === ENTITY AND EPISODIC MEMORY TRACKING ===
+    
+    // 1. Check if someone is introducing themselves
+    const newEntity = entityMemorySystem.detectIntroduction(message, 'web-chat');
+    if (newEntity) {
+      logger.info(`[Chat] New entity introduced: ${newEntity.name}`);
+    }
+
+    // 2. Extract entity mentions from message
+    const entityMentions = entityMemorySystem.extractEntitiesFromText(message, 'web-chat');
+    
+    // 3. Determine which entities are involved (default to owner)
+    let involvedEntities: string[] = ['entity_owner_cha']; // Owner is always involved
+    if (entityMentions.length > 0) {
+      involvedEntities = [...new Set([...involvedEntities, ...entityMentions.map(m => m.entityId)])];
+    }
+
+    // 4. Check for "Do you remember me?" type queries
+    const rememberQuery = message.toLowerCase().match(/(?:bạn |con )?(?:có )?nhớ (?:tôi|mình|em)/i) ||
+                         message.toLowerCase().includes('do you remember me');
+    
+    let memoryRecallContext = '';
+    if (rememberQuery && entityMentions.length > 0) {
+      // Someone is asking if we remember them
+      const entityId = entityMentions[0].entityId;
+      const recallResult = await entityMemorySystem.recall(
+        entityMemorySystem.getEntity(entityId)?.name || 'unknown'
+      );
+      
+      if (recallResult.remembered && recallResult.summary) {
+        memoryRecallContext = `\n\n=== MEMORY RECALL ===\n${recallResult.summary}\n`;
+        logger.info(`[Chat] Memory recall activated for entity ${entityId}`);
+      }
+    }
+
+    // Add memory recall to context if available
+    if (memoryRecallContext) {
+      awarenessContext += memoryRecallContext;
+    }
+
     // Sử dụng soul personality với full context
     const response = await createSoulfulResponse(
       message,
@@ -123,6 +165,17 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 
     // Add assistant response to history
     addToHistory(sessionId, 'assistant', response);
+
+    // 5. Record this conversation as an episode
+    const episode = episodicMemorySystem.recordConversation({
+      entityIds: involvedEntities,
+      platform: 'web-chat',
+      userMessage: message,
+      assistantResponse: response,
+    });
+    
+    logger.info(`[Chat] Recorded episode ${episode.id} with ${involvedEntities.length} entities`);
+
 
     // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
     if (memoryBridge.isConnected()) {
