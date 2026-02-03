@@ -13,6 +13,7 @@ import {
 import OpenAI from 'openai';
 import { logger } from '../services/logger';
 import { getCipherHSystemPrompt, augmentSystemPrompt } from '../core/systemPrompt';
+import { isReasoningModel } from '../utils/modelHelpers';
 
 class OpenAIProvider implements ILLMProvider {
   id = 'openai';
@@ -130,12 +131,21 @@ class OpenAIProvider implements ILLMProvider {
       
       messages.push({ role: 'user', content: request.prompt });
 
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-4o',
+      const modelToUse = 'gpt-4o';
+      
+      // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
+      const completionOptions: OpenAI.Chat.CompletionCreateParamsNonStreaming = {
+        model: modelToUse,
         messages,
         max_tokens: request.maxTokens || 1000,
-        temperature: request.temperature || 0.7,
-      });
+      };
+      
+      // Only set temperature for non-reasoning models
+      if (!isReasoningModel(modelToUse)) {
+        completionOptions.temperature = request.temperature || 0.7;
+      }
+
+      const response = await this.client.chat.completions.create(completionOptions);
 
       const latencyMs = Date.now() - startTime;
       this.lastLatency = latencyMs;

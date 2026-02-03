@@ -124,6 +124,15 @@ app.use((req, res, next) => {
       }).catch((err) => {
         logger.error(`[reporting] Failed to auto-start selfReporting: ${err.message}`);
       });
+      
+      // Initialize Social Media Learning (simulate for now)
+      import('./services/socialMediaLearning').then(({ socialMediaLearning }) => {
+        socialMediaLearning.simulateSocialLearning().then(() => {
+          logger.info('[socialLearning] 🌐 Social media learning initialized - AGI learns from social context');
+        });
+      }).catch((err) => {
+        logger.error(`[socialLearning] Failed to initialize: ${err.message}`);
+      });
     },
   );
 })();

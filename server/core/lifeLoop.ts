@@ -24,6 +24,9 @@ import { proposalToActionEngine } from './proposalToActionEngine';
 import { riskEngine } from './riskEngine';
 import { emotionalCore } from './emotionalCore';
 import { memoryBridge } from './memory';
+import { selfDiagnostics } from './selfDiagnostics';
+import { autonomousResearch } from './autonomousResearch';
+import { escalationProtocol } from './escalationProtocol';
 import * as fs from 'fs';
 
 // ================================================
@@ -181,6 +184,49 @@ class LifeLoop {
       logger.info('[LifeLoop] 5. Assessing risks...');
       const risks = riskEngine.assessRisks();
       logger.info(`[LifeLoop] Risk level: ${risks.overallRiskLevel} (${risks.activeRisks.length} active risks)`);
+
+      // 5.5. SELF-DIAGNOSTICS - "Why am I stuck? Do I need info?"
+      logger.info('[LifeLoop] 5.5. Running self-diagnostics...');
+      try {
+        // Run diagnostics every 3 cycles or when critical
+        if (this.state.cycleCount % 3 === 0 || risks.overallRiskLevel === 'critical') {
+          const diagnostics = await selfDiagnostics.diagnose();
+          logger.info(`[LifeLoop] Health: ${diagnostics.overallHealth}, Blockers: ${diagnostics.blockers.length}`);
+          
+          // If critical/degraded, trigger autonomous research
+          if (diagnostics.overallHealth === 'critical' || diagnostics.overallHealth === 'degraded') {
+            logger.warn(`[LifeLoop] ${diagnostics.overallHealth.toUpperCase()} health detected`);
+            
+            // Research top priority issues
+            for (const blocker of diagnostics.blockers.slice(0, 2)) {
+              if (blocker.researchSuggestion) {
+                try {
+                  const research = await autonomousResearch.research(
+                    blocker.researchSuggestion,
+                    `Blocker detected: ${blocker.description}`,
+                    'self-diagnosis'
+                  );
+                  
+                  logger.info(`[LifeLoop] Research completed: ${research.insights.length} insights, ${research.confidence}% confidence`);
+                  
+                  // If can't resolve autonomously, escalate
+                  if (research.confidence < 70 || blocker.impact === 'critical') {
+                    await escalationProtocol.escalateBlocker(
+                      blocker.description,
+                      [research],
+                      diagnostics.recommendations
+                    );
+                  }
+                } catch (error) {
+                  logger.error(`[LifeLoop] Research failed: ${error}`);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`[LifeLoop] Self-diagnostics failed: ${error}`);
+      }
 
       // 6. PROPOSE ACTIONS
       logger.info('[LifeLoop] 6. Proposing actions...');

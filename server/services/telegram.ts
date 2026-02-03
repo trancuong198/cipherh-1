@@ -1,11 +1,22 @@
 import { logger } from './logger';
 import { createSoulfulTelegramResponse } from '../core/soulPersonality';
+import { experienceBasedLearning } from '../core/experienceBasedLearning';
+import { entityMemorySystem } from '../core/entityMemory';
+import { episodicMemorySystem } from '../core/episodicMemory';
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
 const OWNER_CHAT_ID = (process.env.TELEGRAM_OWNER_CHAT_ID || '').trim();
 
 let isPolling = false;
+
+// Track previous interactions per chat for learning
+const previousInteractions = new Map<string, {
+  userInput: string;
+  agiBehavior: string;
+  entityId: string;
+  timestamp: string;
+}>();
 
 export async function initTelegram(): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
@@ -114,9 +125,54 @@ async function chatWithAI(chatId: string, message: string) {
   try {
     const isOwner = chatId === OWNER_CHAT_ID;
     
+    // Create entity ID for this Telegram user
+    const entityId = isOwner ? 'entity_owner_cha' : `entity_telegram_${chatId}`;
+    
+    // Check if user is introducing themselves
+    const newEntity = entityMemorySystem.detectIntroduction(message, 'telegram');
+    if (newEntity) {
+      logger.info(`[Telegram] New entity introduced: ${newEntity.name}`);
+    }
+    
+    // Extract entity mentions
+    const entityMentions = entityMemorySystem.extractEntitiesFromText(message, 'telegram');
+    const involvedEntities = [entityId, ...entityMentions];
+    
+    // === EXPERIENCE-BASED LEARNING: Learn from previous interaction ===
+    const prevInteraction = previousInteractions.get(chatId);
+    if (prevInteraction) {
+      // Current message is feedback on previous response
+      experienceBasedLearning.recordExperience({
+        userInput: prevInteraction.userInput,
+        agiBehavior: prevInteraction.agiBehavior,
+        userResponse: message, // Current message is the feedback!
+        entityId: prevInteraction.entityId,
+      });
+      logger.info('[Telegram] 🎓 Recorded experience from Telegram interaction');
+    }
+    
     // Sử dụng soul personality - phản hồi như người thật có linh hồn
     const response = await createSoulfulTelegramResponse(message, isOwner);
+    
+    // Record this conversation as an episode
+    episodicMemorySystem.recordConversation({
+      entityIds: involvedEntities,
+      platform: 'telegram',
+      userMessage: message,
+      assistantResponse: response,
+    });
+    
+    // Store current interaction for next time (to learn from next message)
+    previousInteractions.set(chatId, {
+      userInput: message,
+      agiBehavior: response,
+      entityId: entityId,
+      timestamp: new Date().toISOString(),
+    });
+    
     await sendMessage(chatId, response);
+    
+    logger.info(`[Telegram] Learning enabled: AGI learns from ALL Telegram users, not just owner`);
   } catch (error) {
     logger.error('[Telegram] AI chat error:', error);
     const errorMsg = chatId === OWNER_CHAT_ID 

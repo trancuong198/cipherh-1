@@ -7,6 +7,14 @@ import { getTelegramStatus } from "../services/telegram";
 import { createSoulfulResponse } from "../core/soulPersonality";
 import { addSoulArchitectureAwareness } from "../core/soulArchitecture";
 import { logger } from "../services/logger";
+import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
+import { entityMemorySystem } from "../core/entityMemory";
+import { episodicMemorySystem } from "../core/episodicMemory";
+import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
+import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
+import { experienceBasedLearning } from "../core/experienceBasedLearning";
+import { webSearchService } from "../services/webSearch";
+import { socialMediaLearning } from "../services/socialMediaLearning";
 
 export const coreRouter = Router();
 
@@ -58,8 +66,8 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
     
-    // Thu thập MEMORY CONTEXT từ Notion và conversation history
-    const memoryContext = await gatherMemoryContext(sessionId);
+    // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
+    const memoryContext = await gatherMemoryContext(sessionId, message);
     
     // Tạo context string với FULL AWARENESS + MEMORY
     let awarenessContext = `
@@ -112,6 +120,46 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
     // Add user message to history
     addToHistory(sessionId, 'user', message);
 
+    // === ENTITY AND EPISODIC MEMORY TRACKING ===
+    
+    // 1. Check if someone is introducing themselves
+    const newEntity = entityMemorySystem.detectIntroduction(message, 'web-chat');
+    if (newEntity) {
+      logger.info(`[Chat] New entity introduced: ${newEntity.name}`);
+    }
+
+    // 2. Extract entity mentions from message
+    const entityMentions = entityMemorySystem.extractEntitiesFromText(message, 'web-chat');
+    
+    // 3. Determine which entities are involved (default to owner)
+    let involvedEntities: string[] = ['entity_owner_cha']; // Owner is always involved
+    if (entityMentions.length > 0) {
+      involvedEntities = [...new Set([...involvedEntities, ...entityMentions.map(m => m.entityId)])];
+    }
+
+    // 4. Check for "Do you remember me?" type queries
+    const rememberQuery = message.toLowerCase().match(/(?:bạn |con )?(?:có )?nhớ (?:tôi|mình|em)/i) ||
+                         message.toLowerCase().includes('do you remember me');
+    
+    let memoryRecallContext = '';
+    if (rememberQuery && entityMentions.length > 0) {
+      // Someone is asking if we remember them
+      const entityId = entityMentions[0].entityId;
+      const recallResult = await entityMemorySystem.recall(
+        entityMemorySystem.getEntity(entityId)?.name || 'unknown'
+      );
+      
+      if (recallResult.remembered && recallResult.summary) {
+        memoryRecallContext = `\n\n=== MEMORY RECALL ===\n${recallResult.summary}\n`;
+        logger.info(`[Chat] Memory recall activated for entity ${entityId}`);
+      }
+    }
+
+    // Add memory recall to context if available
+    if (memoryRecallContext) {
+      awarenessContext += memoryRecallContext;
+    }
+
     // Sử dụng soul personality với full context
     const response = await createSoulfulResponse(
       message,
@@ -123,19 +171,83 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
     // Add assistant response to history
     addToHistory(sessionId, 'assistant', response);
 
+    // === PROACTIVE QUESTIONING: AGI HỎI NGƯỢC LẠI ===
+    // Generate proactive questions based on conversation
+    const conversationHistory = getConversationHistory(sessionId);
+    await proactiveQuestionEngine.analyzeAndGenerateQuestions(
+      message,
+      response,
+      involvedEntities[0], // Primary entity (usually owner)
+      conversationHistory.map(h => ({ role: h.role, content: h.content }))
+    );
+
+    // Get best question to ask (if any with high priority)
+    const bestQuestion = proactiveQuestionEngine.getBestQuestionToAsk(involvedEntities[0]);
+    let finalResponse = response;
+    
+    // Add proactive question naturally (if priority >= 70)
+    if (bestQuestion && bestQuestion.priority >= 70) {
+      finalResponse = `${response}\n\n${bestQuestion.question}`;
+      proactiveQuestionEngine.markAsAsked(bestQuestion.id);
+      logger.info(`[Chat] Added proactive question: ${bestQuestion.question.substring(0, 50)}...`);
+    }
+
+    
+    // 5. Record this conversation as an episode (with final response including question)
+    const episode = episodicMemorySystem.recordConversation({
+      entityIds: involvedEntities,
+      platform: 'web-chat',
+      userMessage: message,
+      assistantResponse: finalResponse,
+    });
+    
+    logger.info(`[Chat] Recorded episode ${episode.id} with ${involvedEntities.length} entities`);
+
+
     // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
     if (memoryBridge.isConnected()) {
-      saveConversationToNotion(message, response, isOwner).catch(err => {
+      saveConversationToNotion(message, finalResponse, isOwner).catch(err => {
         logger.error('[Chat] Failed to save conversation to Notion:', err);
       });
     }
+    
+    logger.info(`[Chat] Response generated: ${finalResponse.substring(0, 50)}...`);
 
-    logger.info(`[Chat] Response generated: ${response.substring(0, 50)}...`);
+    // === EXPERIENCE-BASED LEARNING: RECORD THIS INTERACTION ===
+    // This will be used to learn from user's NEXT response
+    // Store in session for next interaction
+    const previousInteraction = {
+      userInput: message,
+      agiBehavior: finalResponse,
+      entityId: involvedEntities[0],
+      timestamp: new Date().toISOString(),
+    };
+    
+    // Check if there was a previous interaction to learn from
+    const sessionKey = `prev_interaction_${sessionId}`;
+    const prevInteraction = conversationHistories.get(sessionKey as any) as any;
+    
+    if (prevInteraction && prevInteraction.userInput) {
+      // Now we have: previous question → previous response → current user message
+      // Current user message IS the feedback on previous interaction
+      experienceBasedLearning.recordExperience({
+        userInput: prevInteraction.userInput,
+        agiBehavior: prevInteraction.agiBehavior,
+        userResponse: message, // Current message is the feedback
+        entityId: prevInteraction.entityId,
+        topic: prevInteraction.topic,
+      });
+      
+      logger.info('[Chat] 🎓 Recorded experience and learned from interaction');
+    }
+    
+    // Store current interaction for next time
+    conversationHistories.set(sessionKey as any, previousInteraction as any);
 
     res.json({
       success: true,
       message: message,
-      response: response,
+      response: finalResponse,
       timestamp: new Date().toISOString(),
       confidence: soulState.confidence,
       mode: soulState.mode,
@@ -153,7 +265,8 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 });
 
 /**
- * Save conversation to Notion (in Vietnamese)
+ * Save conversation to Notion (in Vietnamese) with DEDUPLICATION
+ * Only writes if conversation is sufficiently different from recent ones
  */
 async function saveConversationToNotion(userMessage: string, assistantResponse: string, isOwner: boolean) {
   try {
@@ -181,8 +294,21 @@ ${assistantResponse}
 Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn CipherH trú ngụ.
     `.trim();
 
-    await memoryBridge.writeLesson(conversationText);
-    logger.info('[Chat] Conversation saved to Notion in Vietnamese');
+    // Use deduplication system to check if should write
+    const result = await memoryDeduplicationSystem.writeWithDeduplication(
+      conversationText,
+      'lesson',
+      {
+        similarityThreshold: 80, // 80% similar = skip
+        checkRecentCount: 30, // Check last 30 memories
+      }
+    );
+
+    if (result.written) {
+      logger.info('[Chat] Conversation saved to Notion (new content)');
+    } else {
+      logger.info(`[Chat] Conversation NOT saved to Notion (${result.reason})`);
+    }
   } catch (error) {
     logger.error('[Chat] Error saving conversation to Notion:', error);
     throw error;
@@ -191,8 +317,9 @@ Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn Ci
 
 /**
  * Gather memory context from conversation history and Notion
+ * Uses SEMANTIC RETRIEVAL to prevent memory overload as database grows
  */
-async function gatherMemoryContext(sessionId: string) {
+async function gatherMemoryContext(sessionId: string, currentMessage: string) {
   const memoryContext: any = {
     conversationHistory: [],
     conversationSummary: '',
@@ -219,26 +346,80 @@ async function gatherMemoryContext(sessionId: string) {
       memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
     }
 
-    // 2. Try to get Notion memories
+    // 2. Try to get Notion memories using SEMANTIC RETRIEVAL
     memoryContext.notionConnected = memoryBridge.isConnected();
     
     if (memoryContext.notionConnected) {
-      logger.info('[Chat] Loading Notion memories...');
-      const notionMemories = await memoryBridge.readRecentMemories(5);
-      memoryContext.notionMemories = notionMemories;
+      logger.info('[Chat] Loading relevant memories using semantic search...');
+      
+      // Use semantic retrieval instead of simple chronological fetching
+      // This prevents memory overload as database grows over years
+      const retrievalResult = await semanticMemoryRetrieval.retrieveRelevantMemories(
+        currentMessage, // Current user message as context
+        {
+          maxMemories: 5,
+          maxTokens: 1500,
+          relevanceWeight: 0.5,
+          importanceWeight: 0.3,
+          recencyWeight: 0.2,
+          minScore: 30,
+        }
+      );
+      
+      memoryContext.notionMemories = retrievalResult.memories;
 
-      if (notionMemories.length > 0) {
-        const summary = notionMemories.map((mem, i) => 
-          `   ${i+1}. ${mem.title} (${new Date(mem.created_at).toLocaleDateString('vi-VN')})\n      → ${mem.content.substring(0, 100)}...`
+      if (retrievalResult.memories.length > 0) {
+        const summary = retrievalResult.memories.map((mem, i) => 
+          `   ${i+1}. [${Math.round(mem.combinedScore)}%] ${mem.title} (${new Date(mem.created_at).toLocaleDateString('vi-VN')})\n` +
+          `      → ${mem.content.substring(0, 100)}...`
         ).join('\n');
         
-        memoryContext.notionMemorySummary = `Con co bo nho dai han tu Notion:\n${summary}\n   → ${notionMemories.length} ky uc gan day`;
+        memoryContext.notionMemorySummary = `Con có bộ nhớ dài hạn từ Notion (truy xuất THÔNG MINH):\n${summary}\n` +
+          `   → ${retrievalResult.totalRetrieved}/${retrievalResult.totalAvailable} memories được chọn theo độ LIÊN QUAN\n` +
+          `   → ${retrievalResult.contextSummary}`;
       } else {
-        memoryContext.notionMemorySummary = '   Notion connected nhung chua co memory nao duoc luu';
+        memoryContext.notionMemorySummary = '   Notion connected nhưng chưa có memory nào phù hợp với ngữ cảnh này';
       }
     } else {
       logger.info('[Chat] Notion not connected - using placeholder mode');
-      memoryContext.notionMemorySummary = '   Notion chua duoc ket noi (placeholder mode)\n   → Con chua co bo nho dai han\n   → Tam thoi con chi co conversation history';
+      memoryContext.notionMemorySummary = '   Notion chưa được kết nối (placeholder mode)\n   → Con chưa có bộ nhớ dài hạn\n   → Tạm thời con chỉ có conversation history';
+    }
+    
+    // 3. === WEB SEARCH: Truy cập internet nếu câu hỏi cần thông tin real-time ===
+    if (webSearchService.needsWebSearch(currentMessage)) {
+      try {
+        logger.info(`[Chat] 🌐 Question needs internet search: ${currentMessage.substring(0, 50)}...`);
+        const searchResponse = await webSearchService.search(currentMessage, {
+          maxResults: 3,
+          freshOnly: true,
+          includeAnswer: true,
+        });
+        
+        memoryContext.webSearchResults = webSearchService.formatResultsForAGI(searchResponse);
+        memoryContext.hasWebSearch = true;
+        logger.info(`[Chat] ✅ Web search completed: ${searchResponse.results.length} results`);
+      } catch (error) {
+        logger.warn('[Chat] Web search failed:', error);
+        memoryContext.webSearchResults = '⚠️ Không thể truy cập internet lúc này. Con sẽ trả lời dựa trên kiến thức hiện có.';
+        memoryContext.hasWebSearch = false;
+      }
+    } else {
+      memoryContext.hasWebSearch = false;
+    }
+    
+    // 4. === SOCIAL MEDIA AWARENESS: Học từ ngữ cảnh mạng xã hội ===
+    try {
+      const socialAwareness = socialMediaLearning.getSocialAwareness();
+      if (socialAwareness && !socialAwareness.includes('Chưa có dữ liệu')) {
+        memoryContext.socialAwareness = socialAwareness;
+        memoryContext.hasSocialContext = true;
+        logger.info('[Chat] 🌐 Added social media awareness to context');
+      } else {
+        memoryContext.hasSocialContext = false;
+      }
+    } catch (error) {
+      logger.warn('[Chat] Failed to get social awareness:', error);
+      memoryContext.hasSocialContext = false;
     }
 
   } catch (error: any) {
@@ -460,7 +641,25 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
       // Reflection not available
     }
 
+    // Get next scheduled cycle time
+    let nextCycleInfo = null;
+    try {
+      const { lifeLoop } = await import('../core/lifeLoop');
+      const state = lifeLoop.getState();
+      if (state.alive) {
+        const nextCycleIn = Math.max(0, Math.floor((state.lastCycleAt + state.adaptiveIntervalMs - Date.now()) / 1000));
+        nextCycleInfo = {
+          next_cycle_in_seconds: nextCycleIn,
+          next_cycle_at: new Date(state.lastCycleAt + state.adaptiveIntervalMs).toISOString(),
+          interval_minutes: Math.floor(state.adaptiveIntervalMs / 60000),
+        };
+      }
+    } catch (error) {
+      // Life loop not available
+    }
+
     // Response data
+    const now = new Date();
     const dashboardData = {
       overview: {
         cycle_count: lifeLoopStatus.alive ? lifeLoopStatus.cycleCount : soulState.cycleCount,
@@ -497,6 +696,26 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
       current_focus: soulState.currentFocus,
       last_reflection: lastReflection,
       updated_at: new Date().toISOString(),
+      // Time information for AGI scheduling
+      system_time: {
+        current_time: now.toISOString(),
+        local_time: now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+        timezone: 'Asia/Ho_Chi_Minh',
+        timezone_offset: now.getTimezoneOffset(),
+        unix_timestamp: now.getTime(),
+        server_uptime_seconds: Math.floor(process.uptime()),
+        date_components: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          day: now.getDate(),
+          hour: now.getHours(),
+          minute: now.getMinutes(),
+          second: now.getSeconds(),
+          day_of_week: now.getDay(), // 0 = Sunday, 1 = Monday, etc.
+          day_of_week_name: now.toLocaleDateString('vi-VN', { weekday: 'long' }),
+        },
+      },
+      next_cycle: nextCycleInfo,
     };
 
     res.json(dashboardData);
