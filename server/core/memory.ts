@@ -46,6 +46,20 @@ export class MemoryBridge {
       return true;
     }
 
+    // Import deduplication dynamically to avoid circular dependency
+    const { memoryDeduplicationSystem } = await import('./memoryDeduplication');
+    
+    // Check for duplicates before writing
+    const check = await memoryDeduplicationSystem.shouldWrite(text, 'lesson', {
+      similarityThreshold: 85, // 85% similar = skip (stricter for action logs)
+      checkRecentCount: 30,
+    });
+    
+    if (!check.shouldWrite) {
+      console.log(`[Memory] Skipped duplicate lesson: ${check.reason}`);
+      return true; // Return true to indicate "handled" (even though skipped)
+    }
+
     console.log(`Đang ghi bài học vào Notion: ${text.substring(0, 50)}...`);
 
     try {
@@ -79,6 +93,20 @@ export class MemoryBridge {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
       console.log("[Placeholder] Ghi tóm tắt hàng ngày:", summary.substring(0, 50) + "...");
+      return true;
+    }
+
+    // Import deduplication dynamically
+    const { memoryDeduplicationSystem } = await import('./memoryDeduplication');
+    
+    // Check for duplicates
+    const check = await memoryDeduplicationSystem.shouldWrite(summary, 'summary', {
+      similarityThreshold: 80,
+      checkRecentCount: 20,
+    });
+    
+    if (!check.shouldWrite) {
+      console.log(`[Memory] Skipped duplicate summary: ${check.reason}`);
       return true;
     }
 
@@ -168,6 +196,20 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
       return true;
     }
 
+    // Import deduplication dynamically
+    const { memoryDeduplicationSystem } = await import('./memoryDeduplication');
+    
+    // Check for duplicates
+    const check = await memoryDeduplicationSystem.shouldWrite(note, 'strategy', {
+      similarityThreshold: 80,
+      checkRecentCount: 30,
+    });
+    
+    if (!check.shouldWrite) {
+      console.log(`[Memory] Skipped duplicate strategy: ${check.reason}`);
+      return true;
+    }
+
     console.log(`Đang ghi chiến lược ${strategyType} vào Notion`);
 
     try {
@@ -209,6 +251,20 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
     const isConnected = await isNotionConnected();
     if (!isConnected) {
       console.log(`[Placeholder] Lưu suy ngẫm:`, reflectionText.substring(0, 50) + "...");
+      return true;
+    }
+
+    // Import deduplication dynamically
+    const { memoryDeduplicationSystem } = await import('./memoryDeduplication');
+    
+    // Check for duplicates
+    const check = await memoryDeduplicationSystem.shouldWrite(reflectionText, 'reflection', {
+      similarityThreshold: 80,
+      checkRecentCount: 30,
+    });
+    
+    if (!check.shouldWrite) {
+      console.log(`[Memory] Skipped duplicate reflection: ${check.reason}`);
       return true;
     }
 
