@@ -11,6 +11,7 @@ import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
 import { entityMemorySystem } from "../core/entityMemory";
 import { episodicMemorySystem } from "../core/episodicMemory";
 import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
+import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
 
 export const coreRouter = Router();
 
@@ -167,12 +168,34 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
     // Add assistant response to history
     addToHistory(sessionId, 'assistant', response);
 
-    // 5. Record this conversation as an episode
+    // === PROACTIVE QUESTIONING: AGI HỎI NGƯỢC LẠI ===
+    // Generate proactive questions based on conversation
+    const conversationHistory = getConversationHistory(sessionId);
+    await proactiveQuestionEngine.analyzeAndGenerateQuestions(
+      message,
+      response,
+      involvedEntities[0], // Primary entity (usually owner)
+      conversationHistory.map(h => ({ role: h.role, content: h.content }))
+    );
+
+    // Get best question to ask (if any with high priority)
+    const bestQuestion = proactiveQuestionEngine.getBestQuestionToAsk(involvedEntities[0]);
+    let finalResponse = response;
+    
+    // Add proactive question naturally (if priority >= 70)
+    if (bestQuestion && bestQuestion.priority >= 70) {
+      finalResponse = `${response}\n\n${bestQuestion.question}`;
+      proactiveQuestionEngine.markAsAsked(bestQuestion.id);
+      logger.info(`[Chat] Added proactive question: ${bestQuestion.question.substring(0, 50)}...`);
+    }
+
+    
+    // 5. Record this conversation as an episode (with final response including question)
     const episode = episodicMemorySystem.recordConversation({
       entityIds: involvedEntities,
       platform: 'web-chat',
       userMessage: message,
-      assistantResponse: response,
+      assistantResponse: finalResponse,
     });
     
     logger.info(`[Chat] Recorded episode ${episode.id} with ${involvedEntities.length} entities`);
@@ -180,17 +203,17 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 
     // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
     if (memoryBridge.isConnected()) {
-      saveConversationToNotion(message, response, isOwner).catch(err => {
+      saveConversationToNotion(message, finalResponse, isOwner).catch(err => {
         logger.error('[Chat] Failed to save conversation to Notion:', err);
       });
     }
 
-    logger.info(`[Chat] Response generated: ${response.substring(0, 50)}...`);
+    logger.info(`[Chat] Response generated: ${finalResponse.substring(0, 50)}...`);
 
     res.json({
       success: true,
       message: message,
-      response: response,
+      response: finalResponse,
       timestamp: new Date().toISOString(),
       confidence: soulState.confidence,
       mode: soulState.mode,
