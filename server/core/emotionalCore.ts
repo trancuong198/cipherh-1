@@ -108,8 +108,8 @@ class EmotionalCognitionCore {
   ingestSignal(signal: EmotionalSignal): EmotionalSignal {
     this.emotionalSignals.push(signal);
 
-    // Keep last 200 signals
-    if (this.emotionalSignals.length > 200) {
+    // Keep last 200 signals - only trim when we exceed 250 to reduce overhead
+    if (this.emotionalSignals.length > 250) {
       this.emotionalSignals = this.emotionalSignals.slice(-200);
     }
 
