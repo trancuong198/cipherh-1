@@ -10,6 +10,7 @@ import { logger } from "../services/logger";
 import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
 import { entityMemorySystem } from "../core/entityMemory";
 import { episodicMemorySystem } from "../core/episodicMemory";
+import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
 
 export const coreRouter = Router();
 
@@ -207,7 +208,8 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 });
 
 /**
- * Save conversation to Notion (in Vietnamese)
+ * Save conversation to Notion (in Vietnamese) with DEDUPLICATION
+ * Only writes if conversation is sufficiently different from recent ones
  */
 async function saveConversationToNotion(userMessage: string, assistantResponse: string, isOwner: boolean) {
   try {
@@ -235,8 +237,21 @@ ${assistantResponse}
 Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn CipherH trú ngụ.
     `.trim();
 
-    await memoryBridge.writeLesson(conversationText);
-    logger.info('[Chat] Conversation saved to Notion in Vietnamese');
+    // Use deduplication system to check if should write
+    const result = await memoryDeduplicationSystem.writeWithDeduplication(
+      conversationText,
+      'lesson',
+      {
+        similarityThreshold: 80, // 80% similar = skip
+        checkRecentCount: 30, // Check last 30 memories
+      }
+    );
+
+    if (result.written) {
+      logger.info('[Chat] Conversation saved to Notion (new content)');
+    } else {
+      logger.info(`[Chat] Conversation NOT saved to Notion (${result.reason})`);
+    }
   } catch (error) {
     logger.error('[Chat] Error saving conversation to Notion:', error);
     throw error;
