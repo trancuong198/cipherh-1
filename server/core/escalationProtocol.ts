@@ -6,7 +6,7 @@
  */
 
 import { logger } from '../services/logger';
-import { telegramService } from '../services/telegram';
+import { notifyOwner as sendTelegramMessage } from '../services/telegram';
 import { memoryBridge } from './memory';
 import type { DiagnosticReport } from './selfDiagnostics';
 import type { ResearchResult } from './autonomousResearch';
@@ -223,7 +223,7 @@ ${escalation.question}
       message += `Type: ${escalation.type}\n\n`;
       message += `🔗 Details logged to Notion`;
 
-      await telegramService.sendMessage(message);
+      await sendTelegramMessage(message);
 
       logger.info('[Escalation] Owner notified via Telegram');
     } catch (error) {
