@@ -12,6 +12,7 @@ import { entityMemorySystem } from "../core/entityMemory";
 import { episodicMemorySystem } from "../core/episodicMemory";
 import { memoryDeduplicationSystem } from "../core/memoryDeduplication";
 import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
+import { experienceBasedLearning } from "../core/experienceBasedLearning";
 
 export const coreRouter = Router();
 
@@ -207,8 +208,39 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
         logger.error('[Chat] Failed to save conversation to Notion:', err);
       });
     }
-
+    
     logger.info(`[Chat] Response generated: ${finalResponse.substring(0, 50)}...`);
+
+    // === EXPERIENCE-BASED LEARNING: RECORD THIS INTERACTION ===
+    // This will be used to learn from user's NEXT response
+    // Store in session for next interaction
+    const previousInteraction = {
+      userInput: message,
+      agiBehavior: finalResponse,
+      entityId: involvedEntities[0],
+      timestamp: new Date().toISOString(),
+    };
+    
+    // Check if there was a previous interaction to learn from
+    const sessionKey = `prev_interaction_${sessionId}`;
+    const prevInteraction = conversationHistories.get(sessionKey as any) as any;
+    
+    if (prevInteraction && prevInteraction.userInput) {
+      // Now we have: previous question → previous response → current user message
+      // Current user message IS the feedback on previous interaction
+      experienceBasedLearning.recordExperience({
+        userInput: prevInteraction.userInput,
+        agiBehavior: prevInteraction.agiBehavior,
+        userResponse: message, // Current message is the feedback
+        entityId: prevInteraction.entityId,
+        topic: prevInteraction.topic,
+      });
+      
+      logger.info('[Chat] 🎓 Recorded experience and learned from interaction');
+    }
+    
+    // Store current interaction for next time
+    conversationHistories.set(sessionKey as any, previousInteraction as any);
 
     res.json({
       success: true,
