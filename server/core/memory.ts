@@ -291,6 +291,26 @@ export class MemoryBridge {
   async refreshConnection(): Promise<void> {
     await this.checkConnection();
   }
+
+  /**
+   * Get memory statistics
+   */
+  getMemoryStats(): { rawMemoryCount: number; totalMemories: number } {
+    // Return placeholder stats since we can't easily count Notion records without querying
+    return {
+      rawMemoryCount: 0,
+      totalMemories: 0,
+    };
+  }
+
+  /**
+   * Get recent lessons from memory
+   */
+  getRecentLessons(limit: number = 10): any[] {
+    // This would require querying Notion, but for now return empty array
+    // Could be enhanced to cache recent lessons or query Notion
+    return [];
+  }
 }
 
 export const memoryBridge = new MemoryBridge();
