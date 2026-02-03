@@ -229,12 +229,17 @@ class LifeLoop {
 
       // 11. EXPERIMENT ENGINE - A/B testing
       logger.info('[LifeLoop] 11. Experiment management...');
-      const { experimentEngine } = await import('./experimentEngine');
-      experimentEngine.autoGenerateExperiments({
-        hasRevenueOpportunity: financial.revenueIdeas > 0,
-        recentFailures: actionStats.totalActionsFailed || 0,
-        financialStatus: financial.status,
-      });
+      try {
+        const { experimentEngine } = await import('./experimentEngine');
+        experimentEngine.autoGenerateExperiments({
+          hasRevenueOpportunity: financial.revenueIdeas > 0,
+          recentFailures: actionStats.totalActionsFailed || 0,
+          financialStatus: financial.status,
+        });
+      } catch (error: any) {
+        // ExperimentEngine is optional - log but don't fail
+        logger.warn(`[LifeLoop] ExperimentEngine not available: ${error.message}`);
+      }
 
       // 12. SOCIAL LEARNING - Học từ đời thực
       logger.info('[LifeLoop] 12. Social learning from real-world...');
