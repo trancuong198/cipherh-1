@@ -4,9 +4,54 @@ import { soulState } from "../core/soulState";
 import { openAIService } from "../services/openai";
 import { memoryBridge } from "../core/memory";
 import { getTelegramStatus } from "../services/telegram";
+import { createSoulfulResponse } from "../core/soulPersonality";
 import { logger } from "../services/logger";
 
 export const coreRouter = Router();
+
+/**
+ * Chat API - Nói chuyện trực tiếp với CipherH trên dashboard
+ */
+coreRouter.post("/chat/message", async (req: Request, res: Response) => {
+  try {
+    const { message, isOwner } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ 
+        error: "Message is required",
+        response: "Bạn cần gửi tin nhắn để tôi có thể trả lời."
+      });
+    }
+
+    logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'}: ${message.substring(0, 50)}...`);
+
+    // Sử dụng soul personality - giống như Telegram
+    const response = await createSoulfulResponse(
+      message,
+      'web-dashboard',
+      isOwner || false,
+      'Đây là cuộc trò chuyện trực tiếp trên web dashboard.'
+    );
+
+    logger.info(`[Chat] Response generated: ${response.substring(0, 50)}...`);
+
+    res.json({
+      success: true,
+      message: message,
+      response: response,
+      timestamp: new Date().toISOString(),
+      confidence: soulState.confidence,
+      mode: soulState.mode,
+    });
+  } catch (error: any) {
+    logger.error('[Chat] Error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      response: "Xin lỗi, tôi gặp lỗi khi xử lý tin nhắn. Vui lòng thử lại."
+    });
+  }
+});
 
 /**
  * Dashboard API - Dữ liệu cho bảng điều khiển

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { ChatInterface } from "@/components/ChatInterface";
 import {
   Cpu,
   Brain,
@@ -263,6 +264,11 @@ export default function Dashboard() {
               />
             </CardContent>
           </Card>
+        </div>
+
+        {/* CHAT INTERFACE - Nói chuyện trực tiếp với CipherH */}
+        <div className="mb-6">
+          <ChatInterface isOwner={true} className="h-[600px]" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
