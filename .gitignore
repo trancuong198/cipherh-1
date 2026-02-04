@@ -7,4 +7,5 @@ vite.config.ts.*
 logs/*.log
 data/*.json
 !data/.gitkeep
-!logs/.gitkeep
+!logs/.gitkeep# Test files
+test-openai-fix.js
