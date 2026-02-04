@@ -4,6 +4,7 @@ import { governance as symbiosisGovernance } from "./core/governance";
 import { healthRouter } from "./routes/health";
 import { coreRouter } from "./routes/core";
 import { codemodRouter } from "./routes/codemod";
+import { autonomousRouter } from "./routes/autonomous";
 import { registerGenes } from "./genes";
 import { logger } from "./services/logger";
 
@@ -24,6 +25,9 @@ export async function registerRoutes(httpServer: Server, app: Express) {
 
   // Code modification routes (self-modification capability)
   app.use("/api/code", codemodRouter);
+
+  // Autonomous systems routes (debugging, improvement, learning)
+  app.use("/api/autonomous", autonomousRouter);
 
   // Symbiosis health endpoint
   app.get("/api/health/symbiosis", (_req: Request, res: Response) => {
