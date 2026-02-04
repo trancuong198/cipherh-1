@@ -34,6 +34,10 @@ export class CodeModificationService {
     '.env', // Không cho sửa file env thật
     'package-lock.json', // Không tự động sửa lock file
   ];
+  
+  // Configuration constants
+  private readonly MAX_FILES_TO_READ = 10;
+  private readonly CONFIDENCE_THRESHOLD = 70;
 
   constructor() {
     this.rootPath = process.cwd();
@@ -134,9 +138,13 @@ export class CodeModificationService {
       // Auto commit and push to GitHub
       const syncResult = await gitSync.syncToGithub();
       
+      if (!syncResult.success) {
+        logger.warn(`[CodeMod] Git sync failed: ${syncResult.error}`);
+      }
+      
       return {
         success: true,
-        message: `${action} file successfully and synced to GitHub`,
+        message: `${action} file successfully${syncResult.success ? ' and synced to GitHub' : ' but sync failed'}`,
         filePath: relativePath,
         changes,
         timestamp: new Date().toISOString(),
@@ -178,8 +186,8 @@ export class CodeModificationService {
         };
       }
 
-      const fs = await import('fs');
-      fs.unlinkSync(fullPath);
+      const { unlinkSync } = await import('fs');
+      unlinkSync(fullPath);
       
       logger.info(`[CodeMod] Deleted file: ${relativePath}`);
       logger.info(`[CodeMod] Reason: ${reason}`);
@@ -267,7 +275,7 @@ QUAN TRỌNG:
       if (analysisDecision.needsAnalysis && analysisDecision.filesToRead) {
         logger.info('[CodeMod] Reading context files:', analysisDecision.filesToRead);
         
-        for (const filePath of analysisDecision.filesToRead.slice(0, 10)) { // Giới hạn 10 files
+        for (const filePath of analysisDecision.filesToRead.slice(0, this.MAX_FILES_TO_READ)) {
           try {
             const fileInfo = await this.readFile(filePath);
             if (fileInfo.exists) {
@@ -352,7 +360,7 @@ VÍ DỤ TỐT:
       }
 
       // Check confidence
-      if (codeDecision.confidence && codeDecision.confidence < 70) {
+      if (codeDecision.confidence && codeDecision.confidence < this.CONFIDENCE_THRESHOLD) {
         logger.warn(`[CodeMod] Low confidence: ${codeDecision.confidence}%`);
         return {
           success: false,
@@ -471,8 +479,8 @@ VÍ DỤ TỐT:
     if (currentDepth >= maxDepth) return;
 
     try {
-      const fs = await import('fs');
-      const items = fs.readdirSync(fullPath);
+      const { readdirSync, statSync } = await import('fs');
+      const items = readdirSync(fullPath);
 
       for (const item of items) {
         // Skip node_modules, dist, .git, etc.
@@ -483,7 +491,7 @@ VÍ DỤ TỐT:
 
         const itemPath = join(fullPath, item);
         const itemRelPath = `${relativePath}/${item}`;
-        const stats = fs.statSync(itemPath);
+        const stats = statSync(itemPath);
 
         if (stats.isDirectory()) {
           result.push(`  ${'  '.repeat(currentDepth)}${item}/`);
@@ -508,12 +516,12 @@ VÍ DỤ TỐT:
         return [];
       }
 
-      const fs = await import('fs');
+      const { readdirSync } = await import('fs');
       if (!existsSync(fullPath)) {
         return [];
       }
 
-      const files = fs.readdirSync(fullPath);
+      const files = readdirSync(fullPath);
       return files;
     } catch (error: any) {
       logger.error(`[CodeMod] Error listing files in ${relativePath}:`, error);
@@ -584,6 +592,8 @@ VÍ DỤ TỐT:
       rootPath: this.rootPath,
       allowedExtensions: this.allowedExtensions,
       protectedFiles: this.protectedFiles,
+      maxFilesToRead: this.MAX_FILES_TO_READ,
+      confidenceThreshold: this.CONFIDENCE_THRESHOLD,
     };
   }
 }
