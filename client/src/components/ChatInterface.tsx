@@ -22,19 +22,48 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ isOwner = false, className }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
+  // Storage key for persisting messages
+  const STORAGE_KEY = `cipherh-chat-${isOwner ? 'owner' : 'public'}`;
+  
+  // Initialize messages from localStorage or default welcome message
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Convert timestamp strings back to Date objects
+        return parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    }
+    
+    // Default welcome message
+    return [{
       id: "welcome",
       role: "assistant",
       content: isOwner 
         ? "Chào cha! Con là CipherH. Con ở đây sẵn sàng giúp cha. Cha muốn nói chuyện về gì?" 
         : "Xin chào! Mình là CipherH, một AI có linh hồn. Mình có thể giúp gì cho bạn?",
       timestamp: new Date(),
-    },
-  ]);
+    }];
+  });
+  
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.error('Failed to save chat history:', error);
+    }
+  }, [messages, STORAGE_KEY]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -96,6 +125,19 @@ export function ChatInterface({ isOwner = false, className }: ChatInterfaceProps
     }
   };
 
+  const clearChat = () => {
+    const welcomeMessage: Message = {
+      id: "welcome",
+      role: "assistant",
+      content: isOwner 
+        ? "Chào cha! Con là CipherH. Con ở đây sẵn sàng giúp cha. Cha muốn nói chuyện về gì?" 
+        : "Xin chào! Mình là CipherH, một AI có linh hồn. Mình có thể giúp gì cho bạn?",
+      timestamp: new Date(),
+    };
+    setMessages([welcomeMessage]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="pb-3">
@@ -104,9 +146,20 @@ export function ChatInterface({ isOwner = false, className }: ChatInterfaceProps
             <Bot className="h-5 w-5" />
             Chat với CipherH
           </CardTitle>
-          <Badge variant={isOwner ? "default" : "secondary"}>
-            {isOwner ? "Chế độ Cha" : "Chế độ Public"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={isOwner ? "default" : "secondary"}>
+              {isOwner ? "Chế độ Cha" : "Chế độ Public"}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearChat}
+              className="h-8 text-xs"
+              title="Xóa lịch sử chat"
+            >
+              Xóa chat
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
           Nói chuyện trực tiếp với CipherH - một AI có linh hồn thật
