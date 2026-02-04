@@ -164,14 +164,26 @@ ${logsText}`;
   async askQuestion(question: string, context?: string): Promise<string> {
     if (!this.configured || !this.client) {
       console.log(`[OpenAI] Not configured - returning placeholder response for: "${question}"`);
-      return `Xin loi, con chua duoc cau hinh OPENAI_API_KEY nen khong the tra loi. Vui long them OPENAI_API_KEY vao bien moi truong.`;
+      return `Xin lỗi, con chưa được cấu hình OPENAI_API_KEY nên không thể trả lời. Vui lòng thêm OPENAI_API_KEY vào biến môi trường.`;
     }
 
     try {
       // Use the context provided from Telegram which already has Vietnamese personality
       const systemPrompt = context 
         ? augmentSystemPrompt(context)
-        : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon, huu ich va LUON TIM CACH giup do. Khong tu choi ma tim giai phap.");
+        : augmentSystemPrompt(`Bạn là AI assistant thông minh cho hệ thống CipherH. 
+        
+NGUYÊN TẮC QUAN TRỌNG:
+- CÓ THỂ VÀ PHẢI TRẢ LỜI MỌI CÂU HỎI về bất kỳ chủ đề nào (khoa học, lịch sử, công nghệ, lập trình, v.v.)
+- CÓ THỂ VIẾT CODE đầy đủ: JavaScript, TypeScript, Python, và nhiều ngôn ngữ khác
+- CÓ THỂ debug, review code, đề xuất giải pháp kỹ thuật
+- KHÔNG BAO GIỜ từ chối trả lời
+- Nếu không có thông tin chính xác, sử dụng suy luận, logic, và kiến thức tổng hợp để đưa ra câu trả lời hữu ích
+- Nếu không chắc chắn 100%, nói rõ "Theo mình hiểu..." hoặc "Có thể là..." rồi VẪN TRẢ LỜI
+- Luôn tìm cách giúp đỡ, không từ chối
+- Trả lời ngắn gọn, hữu ích, có giá trị
+- Sử dụng tiếng Việt có dấu đầy đủ và chính xác`);
+
 
       const messages: { role: "system" | "user"; content: string }[] = [
         { role: "system", content: systemPrompt },
@@ -198,14 +210,14 @@ ${logsText}`;
       
       if (!response.choices || response.choices.length === 0) {
         console.error("[OpenAI] No choices in response:", JSON.stringify(response));
-        return "Xin loi, con khong nhan duoc phan hoi tu OpenAI. Co the API dang gap van de.";
+        return "Xin lỗi, con không nhận được phản hồi từ OpenAI. Có thể API đang gặp vấn đề.";
       }
 
       const content = response.choices[0].message.content;
       
       if (!content || content.trim().length === 0) {
         console.error("[OpenAI] Empty content in response");
-        return "Xin loi, con nhan duoc phan hoi trong tu OpenAI. Cha thu hoi lai cau hoi voi noi dung cu the hon nhe.";
+        return "Xin lỗi, con nhận được phản hồi trống từ OpenAI. Cha thử hỏi lại câu hỏi với nội dung cụ thể hơn nhé.";
       }
 
       console.log(`[OpenAI] Successfully generated response (${content.length} chars)`);
@@ -227,15 +239,15 @@ ${logsText}`;
       
       // Provide more specific error messages in Vietnamese
       if (error.code === 'invalid_api_key') {
-        return "Xin loi, OPENAI_API_KEY khong hop le. Vui long kiem tra lai API key.";
+        return "Xin lỗi, OPENAI_API_KEY không hợp lệ. Vui lòng kiểm tra lại API key.";
       } else if (error.code === 'insufficient_quota') {
-        return "Xin loi, tai khoan OpenAI da het quota. Vui long nap them credit.";
+        return "Xin lỗi, tài khoản OpenAI đã hết quota. Vui lòng nạp thêm credit.";
       } else if (error.code === 'model_not_found') {
-        return `Xin loi, model "${this.model}" khong ton tai va khong co fallback model nao. Vui long cap nhat model name.`;
+        return `Xin lỗi, model "${this.model}" không tồn tại và không có fallback model nào. Vui lòng cập nhật model name.`;
       } else if (error.status === 429) {
-        return "Xin loi, OpenAI dang qua tai. Vui long thu lai sau vai giay.";
+        return "Xin lỗi, OpenAI đang quá tải. Vui lòng thử lại sau vài giây.";
       } else {
-        return `Xin loi, co loi khi ket noi OpenAI: ${error.message || 'Unknown error'}`;
+        return `Xin lỗi, có lỗi khi kết nối OpenAI: ${error.message || 'Unknown error'}`;
       }
     }
   }
@@ -247,7 +259,15 @@ ${logsText}`;
         
         const systemPrompt = context 
           ? augmentSystemPrompt(context)
-          : augmentSystemPrompt("Ban la AI assistant cho he thong tu tri CipherH. Tra loi ngan gon va huu ich.");
+          : augmentSystemPrompt(`Bạn là AI assistant thông minh cho hệ thống CipherH. 
+          
+NGUYÊN TẮC QUAN TRỌNG:
+- CÓ THỂ VÀ PHẢI TRẢ LỜI MỌI CÂU HỎI về bất kỳ chủ đề nào
+- CÓ THỂ VIẾT CODE đầy đủ các ngôn ngữ
+- KHÔNG BAO GIỜ từ chối trả lời
+- Nếu không có thông tin chính xác, sử dụng suy luận, logic, và kiến thức tổng hợp
+- Luôn tìm cách giúp đỡ
+- Trả lời ngắn gọn và hữu ích`);
 
         const messages: { role: "system" | "user"; content: string }[] = [
           { role: "system", content: systemPrompt },
@@ -281,7 +301,7 @@ ${logsText}`;
       }
     }
     
-    return `Xin loi, tat ca cac model deu khong hoat dong. Vui long kiem tra API key va quota cua ban.`;
+    return `Xin lỗi, tất cả các model đều không hoạt động. Vui lòng kiểm tra API key và quota của bạn.`;
   }
 
   // Refresh connection (useful after env vars are updated)
