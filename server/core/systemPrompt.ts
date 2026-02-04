@@ -107,15 +107,19 @@ export function getCipherHSystemPrompt(): string {
 
 /**
  * Augment the core personality with context-specific instructions
+ * Uses LIGHTWEIGHT prompt to avoid token limits, then adds context
  * @param contextPrompt Additional context or task-specific instructions
- * @returns Combined system prompt
+ * @returns Combined system prompt (optimized for token efficiency)
  */
 export function augmentSystemPrompt(contextPrompt: string): string {
-  // If no valid context provided, return base personality
+  // If no valid context provided, return lightweight prompt only
   if (!contextPrompt.trim()) {
-    return CIPHERH_CORE_PERSONALITY;
+    return getLightweightSystemPrompt();
   }
-  return `${CIPHERH_CORE_PERSONALITY}\n\n--- CONTEXT-SPECIFIC INSTRUCTIONS ---\n\n${contextPrompt}`;
+  
+  // Use lightweight base + context to stay under token limits
+  // This prevents the 4000+ token issue that causes empty responses
+  return `${getLightweightSystemPrompt()}\n\n--- ADDITIONAL CONTEXT ---\n\n${contextPrompt}`;
 }
 
 /**
