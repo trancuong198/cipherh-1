@@ -96,25 +96,25 @@ async function handleUpdate(update: any) {
   
   if (text === '/start') {
     await sendMessage(chatId, 
-      `CipherH Soul Loop ket noi thanh cong!\n\n` +
-      `Con la CipherH, con trai cua cha. Con luon san sang de ho tro cha.\n\n` +
-      `Lenh:\n` +
-      `/status - Xem trang thai\n` +
-      `/run - Chay Soul Loop cycle\n\n` +
-      `Hoac cha co the noi chuyen truc tiep voi con!`
+      `CipherH Soul Loop kết nối thành công!\n\n` +
+      `Con là CipherH, con trai của cha. Con luôn sẵn sàng để hỗ trợ cha.\n\n` +
+      `Lệnh:\n` +
+      `/status - Xem trạng thái\n` +
+      `/run - Chạy Soul Loop cycle\n\n` +
+      `Hoặc cha có thể nói chuyện trực tiếp với con về bất kỳ chủ đề gì!`
     );
   } else if (text === '/status') {
     await sendStatusUpdate(chatId);
   } else if (text === '/run') {
-    await sendMessage(chatId, 'Con dang chay Soul Loop cycle...');
+    await sendMessage(chatId, 'Con đang chạy Soul Loop cycle...');
     try {
       const loopResponse = await fetch('http://localhost:5000/api/core/run-loop');
       const result = await loopResponse.json();
       await sendMessage(chatId, 
-        `Soul Loop Ket Qua:\nCycle: ${result.cycle || 'N/A'}\nThanh cong: ${result.success ? 'Co' : 'Khong'}`
+        `Soul Loop Kết Quả:\nCycle: ${result.cycle || 'N/A'}\nThành công: ${result.success ? 'Có' : 'Không'}`
       );
     } catch (err) {
-      await sendMessage(chatId, 'Xin loi cha, con gap loi khi chay Soul Loop');
+      await sendMessage(chatId, 'Xin lỗi cha, con gặp lỗi khi chạy Soul Loop');
     }
   } else if (!text.startsWith('/')) {
     await chatWithAI(chatId, text);
@@ -176,8 +176,8 @@ async function chatWithAI(chatId: string, message: string) {
   } catch (error) {
     logger.error('[Telegram] AI chat error:', error);
     const errorMsg = chatId === OWNER_CHAT_ID 
-      ? 'Xin loi cha, con gap loi khi xu ly tin nhan. Cha thu lai nhe!'
-      : 'Xin loi, toi gap loi khi xu ly tin nhan. Vui long thu lai!';
+      ? 'Xin lỗi cha, con gặp lỗi khi xử lý tin nhắn. Cha thử lại nhé!'
+      : 'Xin lỗi, tôi gặp lỗi khi xử lý tin nhắn. Vui lòng thử lại!';
     await sendMessage(chatId, errorMsg);
   }
 }
@@ -197,7 +197,7 @@ async function sendStatusUpdate(chatId: string) {
       `Notion: ${status.services?.notion?.connected ? 'OK' : 'Off'}`
     );
   } catch (error) {
-    await sendMessage(chatId, 'Loi khi lay trang thai');
+    await sendMessage(chatId, 'Lỗi khi lấy trạng thái');
   }
 }
 
@@ -228,8 +228,8 @@ export async function notifyOwner(text: string): Promise<boolean> {
 
 export async function notifySoulLoopComplete(cycleCount: number, selfScore: number, insights: string[]) {
   const message = 
-    `Soul Loop Cycle ${cycleCount} Hoan Thanh\n\n` +
-    `Diem: ${selfScore.toFixed(2)}\n\n` +
+    `Soul Loop Cycle ${cycleCount} Hoàn Thành\n\n` +
+    `Điểm: ${selfScore.toFixed(2)}\n\n` +
     `Insights:\n${insights.slice(0, 3).map(i => `- ${i}`).join('\n')}`;
   
   await notifyOwner(message);
