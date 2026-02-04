@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ChatInterface } from "@/components/ChatInterface";
-import { useState, useEffect } from "react";
+import { SystemClock } from "@/components/SystemClock";
 import {
   Cpu,
   Brain,
@@ -23,7 +23,6 @@ import {
   Shield,
   CheckCircle,
   Clock,
-  Calendar,
 } from "lucide-react";
 
 interface DashboardData {
@@ -106,17 +105,6 @@ interface InnerLoopResult {
 
 export default function Dashboard() {
   const { toast } = useToast();
-  
-  // Real-time clock state
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Update clock every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const { data: dashboard, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -246,35 +234,10 @@ export default function Dashboard() {
 
           {/* SYSTEM DATE/TIME - AGI Scheduling Reference */}
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-[#121828] border-cyan-500/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-cyan-400" />
-                  SYSTEM TIME (SOUL)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-baseline gap-3">
-                    <Calendar className="w-6 h-6 text-cyan-400" />
-                    <div>
-                      <p className="text-2xl font-mono font-bold text-cyan-400">
-                        {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      </p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                      </p>
-                    </div>
-                  </div>
-                  {dashboard?.system_time && (
-                    <div className="text-xs text-gray-500 space-y-1 mt-3 pt-3 border-t border-gray-700">
-                      <p>Timezone: {dashboard.system_time.timezone}</p>
-                      <p>Server uptime: {Math.floor(dashboard.system_time.server_uptime_seconds / 3600)}h {Math.floor((dashboard.system_time.server_uptime_seconds % 3600) / 60)}m</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <SystemClock
+              timezone={dashboard?.system_time?.timezone}
+              serverUptime={dashboard?.system_time?.server_uptime_seconds}
+            />
 
             {dashboard?.next_cycle && (
               <Card className="bg-[#121828] border-purple-500/30">
