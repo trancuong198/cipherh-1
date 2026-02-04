@@ -1,6 +1,5 @@
 // CipherH OpenAI Service
 // Integration với OpenAI cho log analysis và strategic thinking
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 
 import OpenAI from "openai";
 import { getCipherHSystemPrompt, augmentSystemPrompt } from "../core/systemPrompt";
@@ -23,8 +22,8 @@ export interface LogAnalysisResponse {
 export class OpenAIService {
   private client: OpenAI | null = null;
   private configured: boolean = false;
-  private model: string = "gpt-5";
-  private fallbackModels: string[] = ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
+  private model: string = "gpt-4o";
+  private fallbackModels: string[] = ["gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -171,32 +170,27 @@ ${logsText}`;
       // Use the context provided from Telegram which already has Vietnamese personality
       const systemPrompt = context 
         ? augmentSystemPrompt(context)
-        : augmentSystemPrompt(`Bạn là AI assistant thông minh cho hệ thống CipherH. 
-        
-NGUYÊN TẮC QUAN TRỌNG:
-- CÓ THỂ VÀ PHẢI TRẢ LỜI MỌI CÂU HỎI về bất kỳ chủ đề nào (khoa học, lịch sử, công nghệ, lập trình, v.v.)
-- CÓ THỂ VIẾT CODE đầy đủ: JavaScript, TypeScript, Python, và nhiều ngôn ngữ khác
-- CÓ THỂ debug, review code, đề xuất giải pháp kỹ thuật
-- KHÔNG BAO GIỜ từ chối trả lời
-- Nếu không có thông tin chính xác, sử dụng suy luận, logic, và kiến thức tổng hợp để đưa ra câu trả lời hữu ích
-- Nếu không chắc chắn 100%, nói rõ "Theo mình hiểu..." hoặc "Có thể là..." rồi VẪN TRẢ LỜI
-- Luôn tìm cách giúp đỡ, không từ chối
-- Trả lời ngắn gọn, hữu ích, có giá trị
-- Sử dụng tiếng Việt có dấu đầy đủ và chính xác`);
+        : augmentSystemPrompt(`Bạn là AI assistant thông minh, trả lời MỌI câu hỏi bằng tiếng Việt có dấu.`);
 
+      // Estimate token count (rough: 1 token ≈ 4 chars for English, ~2 chars for Vietnamese)
+      const estimatedSystemTokens = Math.ceil(systemPrompt.length / 2.5);
+      const estimatedQuestionTokens = Math.ceil(question.length / 2.5);
+      const estimatedTotalInputTokens = estimatedSystemTokens + estimatedQuestionTokens;
+
+      console.log(`[OpenAI] Token estimate - System: ~${estimatedSystemTokens}, Question: ~${estimatedQuestionTokens}, Total input: ~${estimatedTotalInputTokens}`);
 
       const messages: { role: "system" | "user"; content: string }[] = [
         { role: "system", content: systemPrompt },
         { role: "user", content: question },
       ];
 
-      console.log(`[OpenAI] Sending question to ${this.model}: "${question.substring(0, 50)}..."`);
+      console.log(`[OpenAI] Sending question to ${this.model}: "${question.substring(0, 100)}..."`);
 
-      // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
+      // Reasoning models (o1, o3) only support default temperature of 1
       const completionOptions: OpenAI.Chat.CompletionCreateParamsNonStreaming = {
         model: this.model,
         messages,
-        max_completion_tokens: 800,
+        max_completion_tokens: 2000, // Increased for longer responses
       };
       
       // Only set temperature for non-reasoning models
@@ -208,16 +202,23 @@ NGUYÊN TẮC QUAN TRỌNG:
 
       console.log(`[OpenAI] Response received, choices: ${response.choices?.length || 0}`);
       
+      // Log token usage if available
+      if (response.usage) {
+        console.log(`[OpenAI] Token usage - Prompt: ${response.usage.prompt_tokens}, Completion: ${response.usage.completion_tokens}, Total: ${response.usage.total_tokens}`);
+      }
+      
       if (!response.choices || response.choices.length === 0) {
         console.error("[OpenAI] No choices in response:", JSON.stringify(response));
-        return "Xin lỗi, con không nhận được phản hồi từ OpenAI. Có thể API đang gặp vấn đề.";
+        console.log("[OpenAI] Trying fallback models due to empty choices...");
+        return await this.askQuestionWithFallback(question, context);
       }
 
       const content = response.choices[0].message.content;
       
       if (!content || content.trim().length === 0) {
-        console.error("[OpenAI] Empty content in response");
-        return "Xin lỗi, con nhận được phản hồi trống từ OpenAI. Cha thử hỏi lại câu hỏi với nội dung cụ thể hơn nhé.";
+        console.error("[OpenAI] Empty content in response - trying fallback models");
+        console.error("[OpenAI] Response finish_reason:", response.choices[0].finish_reason);
+        return await this.askQuestionWithFallback(question, context);
       }
 
       console.log(`[OpenAI] Successfully generated response (${content.length} chars)`);
@@ -274,11 +275,11 @@ NGUYÊN TẮC QUAN TRỌNG:
           { role: "user", content: question },
         ];
 
-        // Reasoning models (o1, o3, gpt-5) only support default temperature of 1
+        // Reasoning models (o1, o3) only support default temperature of 1
         const completionOptions: OpenAI.Chat.CompletionCreateParamsNonStreaming = {
           model: fallbackModel,
           messages,
-          max_completion_tokens: 800,
+          max_completion_tokens: 2000, // Increased for longer responses
         };
         
         // Only set temperature for non-reasoning models
@@ -294,6 +295,8 @@ NGUYÊN TẮC QUAN TRỌNG:
           this.model = fallbackModel;
           console.log(`[OpenAI] Permanently switched to model: ${fallbackModel}`);
           return response.choices[0].message.content;
+        } else {
+          console.log(`[OpenAI] Fallback model ${fallbackModel} returned empty content`);
         }
       } catch (error: any) {
         console.log(`[OpenAI] Fallback model ${fallbackModel} also failed: ${error.message}`);
