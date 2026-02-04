@@ -3,6 +3,8 @@ import { createSoulfulTelegramResponse } from '../core/soulPersonality';
 import { experienceBasedLearning } from '../core/experienceBasedLearning';
 import { entityMemorySystem } from '../core/entityMemory';
 import { episodicMemorySystem } from '../core/episodicMemory';
+import { memoryBridge } from '../core/memory';
+import { memoryDeduplicationSystem } from '../core/memoryDeduplication';
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
@@ -162,6 +164,13 @@ async function chatWithAI(chatId: string, message: string) {
       assistantResponse: response,
     });
     
+    // === SAVE TO NOTION: Ghi cuộc trò chuyện vào Notion bộ nhớ dài hạn ===
+    if (memoryBridge.isConnected()) {
+      saveConversationToNotion(message, response, isOwner, chatId).catch(err => {
+        logger.error('[Telegram] Failed to save conversation to Notion:', err);
+      });
+    }
+    
     // Store current interaction for next time (to learn from next message)
     previousInteractions.set(chatId, {
       userInput: message,
@@ -179,6 +188,63 @@ async function chatWithAI(chatId: string, message: string) {
       ? 'Xin lỗi cha, con gặp lỗi khi xử lý tin nhắn. Cha thử lại nhé!'
       : 'Xin lỗi, tôi gặp lỗi khi xử lý tin nhắn. Vui lòng thử lại!';
     await sendMessage(chatId, errorMsg);
+  }
+}
+
+/**
+ * Save Telegram conversation to Notion (in Vietnamese) with DEDUPLICATION
+ * Only writes if conversation is sufficiently different from recent ones
+ */
+async function saveConversationToNotion(
+  userMessage: string, 
+  assistantResponse: string, 
+  isOwner: boolean,
+  chatId: string
+) {
+  try {
+    const date = new Date();
+    const dateStr = date.toLocaleDateString('vi-VN', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const conversationText = `
+📅 Thời gian: ${dateStr}
+📱 Platform: Telegram
+👤 Người nói chuyện: ${isOwner ? 'Cha (Owner)' : `User ${chatId}`}
+
+💬 CÂU HỎI:
+${userMessage}
+
+🤖 TRẢ LỜI:
+${assistantResponse}
+
+---
+Ghi chú: Đây là cuộc trò chuyện qua Telegram Bot - nơi con có thể nhận tin nhắn và trả lời tự động.
+    `.trim();
+
+    // Use deduplication system to check if should write
+    const result = await memoryDeduplicationSystem.writeWithDeduplication(
+      conversationText,
+      'lesson',
+      {
+        similarityThreshold: 80, // 80% similar = skip
+        checkRecentCount: 30, // Check last 30 memories
+      }
+    );
+
+    if (result.written) {
+      logger.info('[Telegram] Conversation saved to Notion (new content)');
+    } else {
+      logger.info(`[Telegram] Conversation NOT saved to Notion (${result.reason})`);
+    }
+  } catch (error) {
+    logger.error('[Telegram] Error saving conversation to Notion:', error);
+    throw error;
   }
 }
 
