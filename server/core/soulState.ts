@@ -1,6 +1,9 @@
 // CipherH Soul State Manager
 // JARVIS-like state với cảm xúc, mục tiêu, hoài nghi, phản tư
 
+import * as fs from 'fs';
+import * as path from 'path';
+
 export type SoulMode = "idle" | "active" | "learning" | "reflecting" | "strategizing" | "doubting";
 
 export interface PersonalityTraits {
@@ -232,6 +235,9 @@ export class SoulState {
     if (this.confidence < 100) {
       this.confidence = Math.min(100, this.confidence + 1);
     }
+
+    // Save snapshot after each cycle increment for persistence
+    this.saveSnapshot();
   }
 
   setMode(mode: SoulMode): void {
@@ -292,6 +298,79 @@ export class SoulState {
       anomaly_score: this.anomalyScore,
     };
   }
+
+  /**
+   * Save state to snapshot file for persistence across restarts
+   */
+  saveSnapshot(): void {
+    try {
+      const dataDir = path.join(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+
+      const snapshotPath = path.join(dataDir, 'soul_state.json');
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        cycleCount: this.cycleCount,
+        mode: this.mode,
+        confidence: this.confidence,
+        doubts: this.doubts,
+        energyLevel: this.energyLevel,
+        anomalyScore: this.anomalyScore,
+        currentFocus: this.currentFocus,
+        goalsLongTerm: this.goalsLongTerm,
+        lessonsLearned: this.lessonsLearned.slice(-10), // Keep last 10
+        lastActions: this.lastActions.slice(-10), // Keep last 10
+      };
+
+      fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+      console.log(`[SoulState] Snapshot saved: cycle ${this.cycleCount}`);
+    } catch (error) {
+      console.error('[SoulState] Failed to save snapshot:', error);
+    }
+  }
+
+  /**
+   * Load state from snapshot file to restore after restart
+   */
+  loadSnapshot(): void {
+    try {
+      const snapshotPath = path.join(process.cwd(), 'data', 'soul_state.json');
+      
+      if (!fs.existsSync(snapshotPath)) {
+        console.log('[SoulState] No snapshot found, starting fresh');
+        return;
+      }
+
+      const data = fs.readFileSync(snapshotPath, 'utf-8');
+      const snapshot = JSON.parse(data);
+
+      // Restore state
+      this.cycleCount = snapshot.cycleCount || 0;
+      this.mode = snapshot.mode || 'idle';
+      this.confidence = snapshot.confidence || 75;
+      this.doubts = snapshot.doubts || 0;
+      this.energyLevel = snapshot.energyLevel || 100;
+      this.anomalyScore = snapshot.anomalyScore || 0;
+      this.currentFocus = snapshot.currentFocus || null;
+      this.goalsLongTerm = snapshot.goalsLongTerm || [];
+      this.lessonsLearned = snapshot.lessonsLearned || [];
+      this.lastActions = snapshot.lastActions || [];
+
+      console.log(`[SoulState] Snapshot loaded: restored to cycle ${this.cycleCount}`);
+      console.log(`[SoulState] State: confidence=${this.confidence}%, doubts=${this.doubts}%, energy=${this.energyLevel}%`);
+    } catch (error) {
+      console.error('[SoulState] Failed to load snapshot:', error);
+    }
+  }
+
+  export() {
+    return this.exportState();
+  }
 }
 
 export const soulState = new SoulState();
+
+// Load snapshot on initialization
+soulState.loadSnapshot();

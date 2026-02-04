@@ -17,6 +17,10 @@ import {
   createSoulfulFacebookPost, 
   createSoulfulFacebookReply 
 } from '../core/soulPersonality';
+import { memoryBridge } from '../core/memory';
+import { memoryDeduplicationSystem } from '../core/memoryDeduplication';
+import { episodicMemorySystem } from '../core/episodicMemory';
+import { entityMemorySystem } from '../core/entityMemory';
 
 const PAGE_ACCESS_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim() || '';
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID?.trim() || '';
@@ -203,6 +207,23 @@ export async function autoReplyToComment(
     
     if (data.id) {
       logger.info(`[Facebook] Auto-reply posted with soul: "${reply.substring(0, 50)}..."`);
+      
+      // === SAVE TO NOTION: Ghi interaction vào Notion bộ nhớ dài hạn ===
+      if (memoryBridge.isConnected()) {
+        saveInteractionToNotion(commentText, reply, 'comment').catch(err => {
+          logger.error('[Facebook] Failed to save interaction to Notion:', err);
+        });
+      }
+      
+      // Record as episodic memory
+      const entityId = `entity_facebook_comment_${commentId.substring(0, 8)}`;
+      episodicMemorySystem.recordConversation({
+        entityIds: [entityId],
+        platform: 'facebook',
+        userMessage: commentText,
+        assistantResponse: reply,
+      });
+      
       return true;
     }
     
@@ -225,10 +246,125 @@ export async function createAndPostSoulfulPost(topic: string, link?: string): Pr
     // Tạo post có linh hồn như người thật viết
     const message = await createSoulfulFacebookPost(topic);
     
-    return await postToPage(message, link);
+    const result = await postToPage(message, link);
+    
+    // === SAVE TO NOTION: Ghi post vào Notion bộ nhớ dài hạn ===
+    if (result.success && memoryBridge.isConnected()) {
+      savePostToNotion(topic, message).catch(err => {
+        logger.error('[Facebook] Failed to save post to Notion:', err);
+      });
+    }
+    
+    return result;
   } catch (error: any) {
     logger.error(`[Facebook] Soulful post creation error: ${error.message}`);
     return { success: false, error: { message: error.message, type: 'creation_error', code: 0 } };
+  }
+}
+
+/**
+ * Save Facebook interaction to Notion (in Vietnamese) with DEDUPLICATION
+ */
+async function saveInteractionToNotion(
+  userMessage: string, 
+  assistantResponse: string, 
+  type: 'comment' | 'message'
+) {
+  try {
+    const date = new Date();
+    const dateStr = date.toLocaleDateString('vi-VN', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const conversationText = `
+📅 Thời gian: ${dateStr}
+📘 Platform: Facebook
+👤 Loại: ${type === 'comment' ? 'Comment Reply' : 'Message'}
+
+💬 NỘI DUNG TỪ NGƯỜI DÙNG:
+${userMessage}
+
+🤖 TRẢ LỜI CỦA CON:
+${assistantResponse}
+
+---
+Ghi chú: Đây là tương tác qua Facebook Page - nơi con giao tiếp với cộng đồng.
+    `.trim();
+
+    // Use deduplication system to check if should write
+    const result = await memoryDeduplicationSystem.writeWithDeduplication(
+      conversationText,
+      'lesson',
+      {
+        similarityThreshold: 80, // 80% similar = skip
+        checkRecentCount: 30, // Check last 30 memories
+      }
+    );
+
+    if (result.written) {
+      logger.info('[Facebook] Interaction saved to Notion (new content)');
+    } else {
+      logger.info(`[Facebook] Interaction NOT saved to Notion (${result.reason})`);
+    }
+  } catch (error) {
+    logger.error('[Facebook] Error saving interaction to Notion:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save Facebook post to Notion (in Vietnamese) with DEDUPLICATION
+ */
+async function savePostToNotion(topic: string, message: string) {
+  try {
+    const date = new Date();
+    const dateStr = date.toLocaleDateString('vi-VN', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const postText = `
+📅 Thời gian: ${dateStr}
+📘 Platform: Facebook
+📝 Loại: Post
+
+💡 CHỦ ĐỀ:
+${topic}
+
+📢 NỘI DUNG POST:
+${message}
+
+---
+Ghi chú: Đây là bài đăng tự động được tạo bởi CipherH trên Facebook Page.
+    `.trim();
+
+    // Use deduplication system to check if should write
+    const result = await memoryDeduplicationSystem.writeWithDeduplication(
+      postText,
+      'lesson',
+      {
+        similarityThreshold: 80, // 80% similar = skip
+        checkRecentCount: 30, // Check last 30 memories
+      }
+    );
+
+    if (result.written) {
+      logger.info('[Facebook] Post saved to Notion (new content)');
+    } else {
+      logger.info(`[Facebook] Post NOT saved to Notion (${result.reason})`);
+    }
+  } catch (error) {
+    logger.error('[Facebook] Error saving post to Notion:', error);
+    throw error;
   }
 }
 

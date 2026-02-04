@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
-export function ChatInterface({ isOwner = false, className }: ChatInterfaceProps) {
+export const ChatInterface = memo(function ChatInterface({ isOwner = false, className }: ChatInterfaceProps) {
   // Storage key for persisting messages
   const STORAGE_KEY = `cipherh-chat-${isOwner ? 'owner' : 'public'}`;
   
@@ -250,4 +250,4 @@ export function ChatInterface({ isOwner = false, className }: ChatInterfaceProps
       </CardContent>
     </Card>
   );
-}
+});
