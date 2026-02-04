@@ -188,16 +188,22 @@ class AutonomousDebugger {
 
   /**
    * Auto-fix bugs that occur frequently - THỰC SỰ SỬA CODE!
+   * PRIORITY: Fix small bugs first, then larger bugs
    */
   private async autoFixFrequentBugs(): Promise<void> {
-    const bugsToFix = Array.from(this.detectedBugs.values()).filter(
-      bug => bug.frequency >= this.ERROR_THRESHOLD && 
-             this.shouldAutoFix(bug)
-    );
+    const bugsToFix = Array.from(this.detectedBugs.values())
+      .filter(bug => bug.frequency >= this.ERROR_THRESHOLD && this.shouldAutoFix(bug))
+      .sort((a, b) => this.compareBugPriority(a, b)); // SORT BY PRIORITY!
 
     if (bugsToFix.length === 0) return;
 
     logger.info(`[AutonomousDebugger] 🔧 Found ${bugsToFix.length} bug(s) ready to fix automatically`);
+    logger.info(`[AutonomousDebugger] 📋 Fix order: LOW → MEDIUM → HIGH severity`);
+    
+    // Log fix order
+    bugsToFix.forEach((bug, index) => {
+      logger.info(`[AutonomousDebugger]   ${index + 1}. ${bug.id} [${bug.severity.toUpperCase()}] freq=${bug.frequency}`);
+    });
 
     for (const bug of bugsToFix) {
       try {
@@ -207,12 +213,41 @@ class AutonomousDebugger {
       }
     }
   }
+  
+  /**
+   * Compare bugs for priority sorting
+   * Priority: LOW severity first (small bugs), then MEDIUM, then HIGH
+   * Within same severity: higher frequency first
+   */
+  private compareBugPriority(a: DetectedBug, b: DetectedBug): number {
+    // Severity priority order (lower number = fix first)
+    const severityOrder: Record<DetectedBug['severity'], number> = {
+      'low': 1,      // Fix first - easiest
+      'medium': 2,   // Fix second
+      'high': 3,     // Fix last - most complex
+      'critical': 4  // Never auto-fix (filtered out)
+    };
+    
+    const aPriority = severityOrder[a.severity];
+    const bPriority = severityOrder[b.severity];
+    
+    // Sort by severity first (ascending = low first)
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    
+    // Same severity: sort by frequency (descending = high freq first)
+    // More frequent bugs are more important within same severity
+    return b.frequency - a.frequency;
+  }
 
   /**
    * Fix a bug - THỰC SỰ SỬA CODE!
+   * Priority system: Small bugs (low severity) fixed first
    */
   async fixBug(bug: DetectedBug): Promise<BugFix | null> {
     logger.info(`[AutonomousDebugger] 🔨 FIXING BUG: ${bug.id}`);
+    logger.info(`[AutonomousDebugger]   Severity: ${bug.severity.toUpperCase()}, Frequency: ${bug.frequency}`);
     logger.info(`[AutonomousDebugger]   Error: ${bug.error_message.substring(0, 100)}...`);
 
     const startTime = Date.now();
@@ -491,7 +526,10 @@ IMPORTANT: new_code must be the ENTIRE file with the fix applied!`;
 
   private shouldAutoFix(bug: DetectedBug): boolean {
     // Don't auto-fix critical bugs without human review
-    if (bug.severity === 'critical') return false;
+    if (bug.severity === 'critical') {
+      logger.debug(`[AutonomousDebugger] Skipping critical bug ${bug.id} - requires human review`);
+      return false;
+    }
     
     // Don't fix if no file path
     if (!bug.file_path) return false;
