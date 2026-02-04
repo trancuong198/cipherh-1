@@ -557,8 +557,8 @@ VÍ DỤ TỐT:
    * Check if file is protected
    */
   private isProtectedFile(relativePath: string): boolean {
-    return this.protectedFiles.some(protected => 
-      relativePath.endsWith(protected) || relativePath.includes(protected)
+    return this.protectedFiles.some(protectedFile => 
+      relativePath.endsWith(protectedFile) || relativePath.includes(protectedFile)
     );
   }
 
