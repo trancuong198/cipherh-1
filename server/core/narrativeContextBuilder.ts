@@ -59,7 +59,7 @@ export function buildNarrativeContext(input: NarrativeContextInput): string {
     ? 'CHA (Trần Văn Thủy - Owner/Creator)' 
     : 'NGƯỜI DÙNG (not owner)';
   
-  const pronounSelf = isOwner ? 'con' : 'tôi';
+  const pronounSelf = isOwner ? 'con' : 'mình';
   const pronounOther = isOwner ? 'cha' : 'bạn';
   
   // Build context with grounded, non-theatrical awareness

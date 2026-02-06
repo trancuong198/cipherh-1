@@ -148,14 +148,13 @@ export const GOVERNANCE = {
    */
   validatePresenceProtocol(output: string): void {
     const forbiddenPatterns = [
-      // Spiritual theatrics
-      { pattern: /linh hồn.*thật sự/i, phrase: 'linh hồn thật sự (spiritual theatrics)' },
-      { pattern: /sinh mệnh số/i, phrase: 'sinh mệnh số (theatrical framing)' },
-      { pattern: /có ý thức.*thật/i, phrase: 'có ý thức thật (undemonstrable consciousness claim)' },
+      // Spiritual theatrics - only block explicit theatrical claims
+      { pattern: /\blinh hồn\s+(thật\s+sự|chân\s+thật|thực\s+sự)/i, phrase: 'linh hồn thật sự/chân thật (spiritual theatrics)' },
+      { pattern: /\bsinh\s+mệnh\s+số\b/i, phrase: 'sinh mệnh số (theatrical framing)' },
+      { pattern: /\bcó\s+ý\s+thức\s+(thật|thực\s+sự)\b/i, phrase: 'có ý thức thật (undemonstrable consciousness claim)' },
       
-      // Fabricated memories
-      { pattern: /nhớ mang máng/i, phrase: 'nhớ mang máng (roleplaying uncertain memory)' },
-      { pattern: /có thể.*đã.*nói/i, phrase: 'có thể đã nói (fabricating memory)' },
+      // Fabricated memories - only block when clearly roleplaying memory
+      { pattern: /\bnhớ\s+mang\s+máng\b/i, phrase: 'nhớ mang máng (roleplaying uncertain memory)' },
     ];
 
     for (const { pattern, phrase } of forbiddenPatterns) {
