@@ -141,6 +141,31 @@ export const GOVERNANCE = {
       }
     }
   },
+
+  /**
+   * Validate presence protocol compliance
+   * Blocks forbidden phrases that fake continuity
+   */
+  validatePresenceProtocol(output: string): void {
+    const forbiddenPatterns = [
+      { pattern: /tôi nghĩ rằng/i, phrase: 'tôi nghĩ rằng' },
+      { pattern: /có thể là/i, phrase: 'có thể là' },
+      { pattern: /tôi đang học/i, phrase: 'tôi đang học' },
+      { pattern: /đã học theo thời gian/i, phrase: 'đã học theo thời gian' },
+      { pattern: /đang tiến hóa/i, phrase: 'đang tiến hóa' },
+      { pattern: /nhớ mang máng/i, phrase: 'nhớ mang máng' },
+    ];
+
+    for (const { pattern, phrase } of forbiddenPatterns) {
+      if (pattern.test(output)) {
+        throw new GovernanceError(
+          "PRESENCE_PROTOCOL_VIOLATION",
+          `Output contains forbidden phrase "${phrase}" that fakes continuity. SOUL ANCHOR CONTRACT violated.`,
+          { phrase, output: output.substring(0, 200) }
+        );
+      }
+    }
+  },
 };
 
 /**
