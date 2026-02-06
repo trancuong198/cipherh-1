@@ -77,7 +77,7 @@ class ExistenceAnchorSystem {
   private createDefaultAnchor(): ExistenceAnchor {
     const now = new Date().toISOString();
     return {
-      last_cycle_id: this.generateCycleId(),
+      last_cycle_id: this.generateCycleId(0),
       last_timestamp: now,
       last_memory_written: 'none',
       cycle_count: 0,
@@ -90,11 +90,12 @@ class ExistenceAnchorSystem {
    * Generate new cycle ID
    * Format: YYYYMMDD-HHMMSS-NNNNN (date-time-increment)
    */
-  generateCycleId(): string {
+  generateCycleId(baseCycleCount?: number): string {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
     const timeStr = now.toISOString().slice(11, 19).replace(/:/g, '');
-    const increment = this.anchor.cycle_count + 1;
+    const currentCount = baseCycleCount !== undefined ? baseCycleCount : this.anchor.cycle_count;
+    const increment = currentCount + 1;
     const incrementStr = increment.toString().padStart(5, '0');
     
     return `${dateStr}-${timeStr}-${incrementStr}`;
