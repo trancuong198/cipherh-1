@@ -71,11 +71,13 @@ export class MemoryBridge {
       if (this.connected) {
         logger.info("MemoryBridge: Notion connected via Replit Integration");
       } else {
-        logger.info("MemoryBridge: Notion not connected, running in placeholder mode");
+        logger.error("MemoryBridge: Notion NOT connected - memory writes will FAIL");
+        // NO PLACEHOLDER MODE - System must know Notion is unavailable
       }
     } catch (error) {
-      logger.info("MemoryBridge: Running in placeholder mode");
+      logger.error("MemoryBridge: Connection check failed:", error);
       this.connected = false;
+      // NO PLACEHOLDER MODE - Propagate failure state
     }
   }
 
@@ -615,16 +617,11 @@ Memory Type: STATE
    * Get memory statistics
    * @returns Memory statistics object
    * 
-   * Note: This is a placeholder implementation that returns zero values.
-   * A full implementation would query Notion or maintain internal counters
-   * to provide accurate statistics.
+   * REMOVED: This method previously returned placeholder zeros.
+   * If you need memory stats, query Notion directly or use agent_state.
    */
   getMemoryStats(): { rawMemoryCount: number; totalMemories: number } {
-    // Return placeholder stats since we can't easily count Notion records without querying
-    return {
-      rawMemoryCount: 0,
-      totalMemories: 0,
-    };
+    throw new Error('NOT_IMPLEMENTED: getMemoryStats() is not implemented. Query Notion database directly or use agent_state for counters.');
   }
 
   /**
@@ -632,14 +629,11 @@ Memory Type: STATE
    * @param limit Maximum number of lessons to return (currently unused)
    * @returns Array of recent lessons
    * 
-   * Note: This is a placeholder implementation that returns an empty array.
-   * A full implementation would cache recent lessons or query Notion
-   * to provide actual lesson data.
+   * REMOVED: This method previously returned empty array.
+   * If you need recent lessons, query Notion directly.
    */
   getRecentLessons(limit: number = 10): any[] {
-    // This would require querying Notion, but for now return empty array
-    // Could be enhanced to cache recent lessons or query Notion
-    return [];
+    throw new Error('NOT_IMPLEMENTED: getRecentLessons() is not implemented. Query Notion database directly for recent lessons.');
   }
 
   /**

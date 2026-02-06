@@ -5,6 +5,8 @@ import { entityMemorySystem } from '../core/entityMemory';
 import { episodicMemorySystem } from '../core/episodicMemory';
 import { memoryBridge } from '../core/memory';
 import { memoryDeduplicationSystem } from '../core/memoryDeduplication';
+import { agentState } from '../core/agentState';
+import { existenceAnchor } from '../core/existenceAnchor';
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_API_URL = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : '';
@@ -180,6 +182,24 @@ async function chatWithAI(chatId: string, message: string) {
     // ====================================================================================
     // NOW we can proceed with processing - raw input is safely logged
     // ====================================================================================
+    
+    // ====================================================================================
+    // AGENT STATE UPDATE - Record this message in unified state
+    // ====================================================================================
+    const isOwner = chatId === OWNER_CHAT_ID;
+    try {
+      await agentState.recordMessage({
+        platform: 'telegram',
+        user_id: chatId,
+        user_role: isOwner ? 'owner' : 'user',
+        message: message,
+        cycle_id: existenceAnchor.getCurrentCycleId(),
+      });
+      logger.info(`[Telegram:AGENT_STATE] Message recorded in unified state`);
+    } catch (error) {
+      logger.error(`[Telegram] Failed to record message in agent_state: ${error}`);
+      // Continue anyway - don't block conversation
+    }
     
     // Create entity ID for this Telegram user
     const entityId = isOwner ? 'entity_owner_cha' : `entity_telegram_${chatId}`;

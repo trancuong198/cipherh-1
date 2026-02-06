@@ -159,12 +159,8 @@ class ActionsEngine {
     const chatId = params.chatId || process.env.TELEGRAM_OWNER_CHAT_ID;
 
     if (!token || !chatId) {
-      logger.warn('[ActionsEngine] Telegram not configured - running in placeholder mode');
-      return {
-        success: true,
-        message: 'Placeholder mode: Message would be sent to Telegram',
-        data: { message: params.message },
-      };
+      // NO PLACEHOLDER MODE - Expose the failure
+      throw new Error('TELEGRAM_NOT_CONFIGURED: Cannot send message - TELEGRAM_BOT_TOKEN or TELEGRAM_OWNER_CHAT_ID not set');
     }
 
     try {
@@ -211,12 +207,8 @@ class ActionsEngine {
     const databaseId = process.env.NOTION_DATABASE_ID;
 
     if (!token || !databaseId) {
-      logger.warn('[ActionsEngine] Notion not configured - running in placeholder mode');
-      return {
-        success: true,
-        message: 'Placeholder mode: Content would be written to Notion',
-        data: { content: params.content },
-      };
+      // NO PLACEHOLDER MODE - Expose the failure
+      throw new Error('NOTION_NOT_CONFIGURED: Cannot write to Notion - NOTION_TOKEN or NOTION_DATABASE_ID not set');
     }
 
     try {
@@ -459,12 +451,8 @@ class ActionsEngine {
     const pageId = process.env.FACEBOOK_PAGE_ID;
 
     if (!token || !pageId) {
-      logger.warn('[ActionsEngine] Facebook not configured - running in placeholder mode');
-      return {
-        success: true,
-        message: 'Placeholder mode: Post would be published to Facebook',
-        data: { message: params.message, link: params.link },
-      };
+      // NO PLACEHOLDER MODE - Expose the failure
+      throw new Error('FACEBOOK_NOT_CONFIGURED: Cannot post to Facebook - FACEBOOK_PAGE_ACCESS_TOKEN or FACEBOOK_PAGE_ID not set');
     }
 
     try {
