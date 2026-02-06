@@ -24,6 +24,38 @@ const conversationHistories = new Map<string, Array<{role: 'user' | 'assistant',
 // Store user identity per session
 const sessionUsers = new Map<string, {isOwner: boolean, lastUpdate: Date}>();
 
+// Periodic cleanup of expired sessions (every 30 minutes)
+setInterval(() => {
+  const now = new Date();
+  let cleanedSessions = 0;
+  let cleanedUsers = 0;
+  
+  // Clean up session users older than 2 hours
+  for (const [sessionId, user] of sessionUsers.entries()) {
+    const hoursSinceUpdate = (now.getTime() - user.lastUpdate.getTime()) / (1000 * 60 * 60);
+    if (hoursSinceUpdate > 2) {
+      sessionUsers.delete(sessionId);
+      cleanedUsers++;
+    }
+  }
+  
+  // Clean up conversation histories for sessions with no recent activity (>2 hours)
+  for (const [sessionId, history] of conversationHistories.entries()) {
+    if (history.length > 0) {
+      const lastMessage = history[history.length - 1];
+      const hoursSinceLastMessage = (now.getTime() - lastMessage.timestamp.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastMessage > 2) {
+        conversationHistories.delete(sessionId);
+        cleanedSessions++;
+      }
+    }
+  }
+  
+  if (cleanedSessions > 0 || cleanedUsers > 0) {
+    logger.info(`[SessionCleanup] Cleaned ${cleanedSessions} conversation histories and ${cleanedUsers} user sessions`);
+  }
+}, 30 * 60 * 1000); // Run every 30 minutes
+
 /**
  * Get or create conversation history for a session
  */
@@ -373,10 +405,15 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string, is
     if (history.length > 0) {
       const recent = history.slice(-5); // Last 5 for summary
       const summary = recent.map((msg, i) => {
-        // Use isOwner flag from message history if available, otherwise infer from current context
-        const userLabel = msg.role === 'user' 
-          ? (msg.isOwner !== undefined ? (msg.isOwner ? 'Cha' : 'Người dùng') : (isOwner ? 'Cha' : 'Người dùng'))
-          : 'Con';
+        // Determine label for this message
+        let userLabel: string;
+        if (msg.role === 'assistant') {
+          userLabel = 'Con';
+        } else {
+          // For user messages, use stored isOwner flag if available, otherwise use current context
+          const messageIsOwner = msg.isOwner !== undefined ? msg.isOwner : isOwner;
+          userLabel = messageIsOwner ? 'Cha' : 'Người dùng';
+        }
         return `   ${i+1}. ${userLabel}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`;
       }).join('\n');
       
