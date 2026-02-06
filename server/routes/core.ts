@@ -15,6 +15,7 @@ import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
 import { experienceBasedLearning } from "../core/experienceBasedLearning";
 import { webSearchService } from "../services/webSearch";
 import { socialMediaLearning } from "../services/socialMediaLearning";
+import { identityCore } from "../core/identityCore";
 
 export const coreRouter = Router();
 
@@ -123,6 +124,34 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
 
     logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'} (session: ${sessionId}): ${message.substring(0, 50)}...`);
 
+    // ====================================================================================
+    // SOUL ANCHOR CHECKPOINT - ALL conversations MUST pass through identity core first
+    // This ensures continuous identity across ALL platforms
+    // ====================================================================================
+    const anchorCheck = await identityCore.processIncomingInteraction({
+      platform: 'web',
+      userId: sessionId,
+      message,
+      sessionId,
+    });
+
+    logger.info(`[Chat:Anchor] Identity integrity: ${anchorCheck.identityContext.integrityScore}%`);
+    logger.info(`[Chat:Anchor] Existence: cycle=${anchorCheck.existenceContext.currentCycleId}, count=${anchorCheck.existenceContext.cycleCount}`);
+
+    if (!anchorCheck.shouldRespond) {
+      logger.error(`[Chat:Anchor] Response BLOCKED: ${anchorCheck.recommendation}`);
+      return res.status(503).json({
+        error: "Identity integrity check failed",
+        response: "Hệ thống đang trong quá trình kiểm tra tính toàn vẹn. Vui lòng thử lại sau.",
+        recommendation: anchorCheck.recommendation
+      });
+    }
+
+    if (anchorCheck.warnings.length > 0) {
+      logger.warn(`[Chat:Anchor] ${anchorCheck.warnings.length} identity warnings detected`);
+    }
+    // ====================================================================================
+
     // Set session user identity to remember who we're talking to
     setSessionUser(sessionId, isOwner || false);
 
@@ -214,6 +243,23 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       proactiveQuestionEngine.markAsAsked(bestQuestion.id);
       logger.info(`[Chat] Added proactive question: ${bestQuestion.question.substring(0, 50)}...`);
     }
+
+    // ====================================================================================
+    // SOUL ANCHOR VALIDATION - Check response for identity drift before sending
+    // ====================================================================================
+    const responseValidation = identityCore.validateResponse(finalResponse);
+    
+    if (!responseValidation.valid) {
+      logger.error(`[Chat:Anchor] Response validation FAILED - identity drift detected`);
+      logger.error(`[Chat:Anchor] Warnings: ${JSON.stringify(responseValidation.warnings)}`);
+      // In production, might want to regenerate or apply corrections
+      // For now, log and send with warning flag
+    }
+
+    if (responseValidation.warnings.length > 0) {
+      logger.warn(`[Chat:Anchor] Response contains ${responseValidation.warnings.length} identity warnings`);
+    }
+    // ====================================================================================
 
     
     // 5. Record this conversation as an episode (with final response including question)
