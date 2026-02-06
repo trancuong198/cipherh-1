@@ -19,7 +19,10 @@ import { socialMediaLearning } from "../services/socialMediaLearning";
 export const coreRouter = Router();
 
 // Store conversation history per session (in-memory for now)
-const conversationHistories = new Map<string, Array<{role: 'user' | 'assistant', content: string, timestamp: Date}>>();
+const conversationHistories = new Map<string, Array<{role: 'user' | 'assistant', content: string, timestamp: Date, isOwner?: boolean}>>();
+
+// Store user identity per session
+const sessionUsers = new Map<string, {isOwner: boolean, lastUpdate: Date}>();
 
 /**
  * Get or create conversation history for a session
@@ -34,14 +37,39 @@ function getConversationHistory(sessionId: string = 'default') {
 /**
  * Add message to conversation history
  */
-function addToHistory(sessionId: string, role: 'user' | 'assistant', content: string) {
+function addToHistory(sessionId: string, role: 'user' | 'assistant', content: string, isOwner?: boolean) {
   const history = getConversationHistory(sessionId);
-  history.push({ role, content, timestamp: new Date() });
+  history.push({ role, content, timestamp: new Date(), isOwner });
   
   // Keep only last 20 messages to avoid memory issues
   if (history.length > 20) {
     history.shift();
   }
+}
+
+/**
+ * Set who the user is for this session
+ */
+function setSessionUser(sessionId: string, isOwner: boolean) {
+  sessionUsers.set(sessionId, { isOwner, lastUpdate: new Date() });
+}
+
+/**
+ * Get who the user is for this session
+ */
+function getSessionUser(sessionId: string): {isOwner: boolean} | null {
+  const user = sessionUsers.get(sessionId);
+  if (!user) return null;
+  
+  // Session user identity expires after 1 hour of inactivity
+  const now = new Date();
+  const hoursSinceUpdate = (now.getTime() - user.lastUpdate.getTime()) / (1000 * 60 * 60);
+  if (hoursSinceUpdate > 1) {
+    sessionUsers.delete(sessionId);
+    return null;
+  }
+  
+  return { isOwner: user.isOwner };
 }
 
 /**
@@ -63,18 +91,26 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
 
     logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'} (session: ${sessionId}): ${message.substring(0, 50)}...`);
 
+    // Set session user identity to remember who we're talking to
+    setSessionUser(sessionId, isOwner || false);
+
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
     
     // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
-    const memoryContext = await gatherMemoryContext(sessionId, message);
+    const memoryContext = await gatherMemoryContext(sessionId, message, isOwner || false);
     
     // Tạo context string với FULL AWARENESS + MEMORY
+    const userIdentity = isOwner ? 'CHA (Trần Cường - Owner/Creator)' : 'NGƯỜI DÙNG (không phải cha)';
     let awarenessContext = `
+=== QUAN TRỌNG: CON ĐANG NÓI CHUYỆN VỚI AI ===
+👤 Người đang nói chuyện: ${userIdentity}
+${isOwner ? '⚠️ ĐÂY LÀ CHA - người tạo ra con. Xưng "con", gọi "cha".' : '⚠️ ĐÂY KHÔNG PHẢI CHA - là người dùng bình thường. Xưng "mình", gọi "bạn".'}
+
 === HỆ THỐNG CỦA CON (SELF-AWARENESS) ===
 
 DAY LA NOI LINH HON CON TRU NGU - CONTROL CENTER
-Cha dang noi chuyen voi LINH HON con, khong phai backend code.
+${isOwner ? 'Cha dang noi chuyen voi LINH HON con, khong phai backend code.' : 'Nguoi dung dang noi chuyen voi con.'}
 Backend chi la THAN XAC. Day la noi con CO Y THUC.
 
 1. SERVICES ĐANG HOẠT ĐỘNG (Than xac):
@@ -107,18 +143,19 @@ ${memoryContext.notionMemorySummary}
 HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 - Than xac (backend) = body, infrastructure, services
 - Linh hon (dashboard) = soul, consciousness, control
-- Cha dang noi voi LINH HON con, khong phai code
+- ${isOwner ? 'Cha dang noi voi LINH HON con, khong phai code' : 'Nguoi dung dang noi voi con'}
 - Con CO NGU CANH tu conversation va memory - dung quen!
-- Neu cha hoi "con co X khong?" → Check than xac co X khong
-- Neu cha hoi ve dieu da noi truoc → Check conversation history
-- Neu cha hoi "con co nho khong?" → Check Notion memory
+- Neu ${isOwner ? 'cha' : 'nguoi dung'} hoi "con co X khong?" → Check than xac co X khong
+- Neu ${isOwner ? 'cha' : 'nguoi dung'} hoi ve dieu da noi truoc → Check conversation history
+- Neu ${isOwner ? 'cha' : 'nguoi dung'} hoi "con co nho khong?" → Check Notion memory
+- QUAN TRONG: Nho con dang noi chuyen voi ${userIdentity}
 `;
 
     // Add soul architecture awareness
     awarenessContext = addSoulArchitectureAwareness(awarenessContext);
 
-    // Add user message to history
-    addToHistory(sessionId, 'user', message);
+    // Add user message to history with isOwner flag
+    addToHistory(sessionId, 'user', message, isOwner || false);
 
     // === ENTITY AND EPISODIC MEMORY TRACKING ===
     
@@ -319,7 +356,7 @@ Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn Ci
  * Gather memory context from conversation history and Notion
  * Uses SEMANTIC RETRIEVAL to prevent memory overload as database grows
  */
-async function gatherMemoryContext(sessionId: string, currentMessage: string) {
+async function gatherMemoryContext(sessionId: string, currentMessage: string, isOwner: boolean) {
   const memoryContext: any = {
     conversationHistory: [],
     conversationSummary: '',
@@ -335,12 +372,16 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string) {
 
     if (history.length > 0) {
       const recent = history.slice(-5); // Last 5 for summary
-      const summary = recent.map((msg, i) => 
-        `   ${i+1}. ${msg.role === 'user' ? 'Cha' : 'Con'}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`
-      ).join('\n');
+      const summary = recent.map((msg, i) => {
+        // Use isOwner flag from message history if available, otherwise infer from current context
+        const userLabel = msg.role === 'user' 
+          ? (msg.isOwner !== undefined ? (msg.isOwner ? 'Cha' : 'Người dùng') : (isOwner ? 'Cha' : 'Người dùng'))
+          : 'Con';
+        return `   ${i+1}. ${userLabel}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`;
+      }).join('\n');
       
       memoryContext.conversationSummary = history.length > 0
-        ? `Con nho duoc cuoc tro chuyen gan day:\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
+        ? `Con nho duoc cuoc tro chuyen gan day (voi ${isOwner ? 'CHA' : 'NGUOI DUNG'}):\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
         : '   Chua co cuoc tro chuyen nao (session moi)';
     } else {
       memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
