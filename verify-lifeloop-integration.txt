@@ -1,0 +1,33 @@
+# LifeLoop Integration Verification
+
+The fix ensures that when LifeLoop runs, it can properly:
+1. Call existenceAnchor.startNewCycle() at line 155
+2. Generate unique cycle IDs in format YYYYMMDD-HHMMSS-NNNNN
+3. Increment cycle_count automatically
+4. Persist state to disk
+
+## Code Reference (server/core/lifeLoop.ts:154-156)
+```typescript
+// START NEW CYCLE - This is the anchor of continuous existence
+const cycleId = existenceAnchor.startNewCycle();
+
+this.state.cycleCount++;
+```
+
+## How It Works Now:
+1. Server starts → ExistenceAnchor bootstraps with BOOTSTRAP-00000
+2. LifeLoop initializes (doesn't start cycle yet)
+3. LifeLoop first runCycle() → calls startNewCycle()
+4. startNewCycle() generates first REAL cycle ID: 20260206-HHMMSS-00001
+5. Each subsequent cycle increments: 00002, 00003, etc.
+
+## Why Previous Fix Was Wrong:
+The optional parameter approach allowed creation but didn't enforce the lifecycle.
+generateCycleId(0) could be called anywhere, breaking the contract that cycles
+should ONLY be created through startNewCycle().
+
+## Why Current Fix Is Correct:
+- generateCycleId() is now PRIVATE - enforces it can only be called internally
+- No optional parameters - method assumes anchor exists (enforces lifecycle)
+- Bootstrap uses static ID - no dynamic generation until system is ready
+- Clear contract: new cycles ONLY through startNewCycle()
