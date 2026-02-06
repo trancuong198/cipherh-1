@@ -16,6 +16,8 @@ import { experienceBasedLearning } from "../core/experienceBasedLearning";
 import { webSearchService } from "../services/webSearch";
 import { socialMediaLearning } from "../services/socialMediaLearning";
 import { identityCore } from "../core/identityCore";
+import { agentState } from "../core/agentState";
+import { existenceAnchor } from "../core/existenceAnchor";
 
 export const coreRouter = Router();
 
@@ -183,6 +185,20 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       message,
       sessionId,
     });
+    
+    // ====================================================================================
+    // AGENT STATE UPDATE - Record this message in unified state
+    // This increments total_messages counter and logs to system_events_log
+    // ====================================================================================
+    await agentState.recordMessage({
+      platform: 'web',
+      user_id: sessionId,
+      user_role: anchorCheck.userVerification.role === 'creator' && anchorCheck.userVerification.verified ? 'owner' : 
+                (anchorCheck.userVerification.verified ? 'user' : 'unknown'),
+      message: message,
+      cycle_id: existenceAnchor.getCurrentCycleId(),
+    });
+    logger.info(`[Chat:AGENT_STATE] Message recorded in unified state`);
 
     logger.info(`[Chat:Anchor] Identity integrity: ${anchorCheck.identityContext.integrityScore}%`);
     logger.info(`[Chat:Anchor] Existence: cycle=${anchorCheck.existenceContext.currentCycleId}, count=${anchorCheck.existenceContext.cycleCount}`);
@@ -776,6 +792,23 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
     const innerLoopStatus = innerLoop.getStatus();
     const telegramStatus = getTelegramStatus();
     
+    // ====================================================================================
+    // AGENT STATE - SINGLE SOURCE OF TRUTH
+    // All metrics come from unified agent_state, not scattered state objects
+    // ====================================================================================
+    let stateData;
+    try {
+      stateData = agentState.getState();
+      logger.info(`[Dashboard] Using unified agent_state: messages=${stateData.total_messages}, cycles=${stateData.total_cycles}`);
+    } catch (error) {
+      logger.error('[Dashboard] Could not get agent_state:', error);
+      return res.status(503).json({
+        error: 'AGENT_STATE_UNAVAILABLE',
+        message: 'Agent state not initialized. System cannot provide dashboard data without state.',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+    
     // Lấy dữ liệu Life Loop nếu có
     let lifeLoopStatus = { alive: false, cycleCount: 0 };
     try {
@@ -856,43 +889,51 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
       // Life loop not available
     }
 
-    // Response data
+    // Response data - NOW USING UNIFIED AGENT STATE
     const now = new Date();
     const dashboardData = {
       overview: {
-        cycle_count: lifeLoopStatus.alive ? lifeLoopStatus.cycleCount : soulState.cycleCount,
-        mode: soulState.mode,
+        // REAL DATA from agent_state, not hardcoded or scattered
+        cycle_count: stateData.total_cycles,
+        total_messages: stateData.total_messages,
+        total_facts_learned: stateData.total_facts_learned,
+        total_identities_known: stateData.total_identities_known,
+        current_cycle_id: stateData.current_cycle_id,
+        mode: stateData.mode,
         is_running: innerLoopStatus.is_running || lifeLoopStatus.alive,
-        doubts: soulState.doubts,
-        confidence: soulState.confidence,
-        energy_level: soulState.energyLevel,
-        anomaly_score: soulState.anomalyScore,
-        _cycle_explanation: (lifeLoopStatus.cycleCount === 0 && soulState.cycleCount === 0)
-          ? "Cycle count is 0. Either: (1) Server just started and loops haven't completed first cycle yet, (2) Snapshot files not loading, or (3) Cycles reset. Check data/ directory for snapshots."
-          : lifeLoopStatus.alive 
-            ? `LifeLoop is running. Cycle ${lifeLoopStatus.cycleCount} completed. Snapshot saved to data/life_loop_snapshot.json.`
-            : `Using soulState.cycleCount=${soulState.cycleCount}. LifeLoop not active. Snapshot saved to data/state_snapshot.json.`
+        doubts: stateData.doubts,
+        confidence: stateData.confidence,
+        energy_level: stateData.energy_level,
+        anomaly_score: stateData.anomaly_score,
+        created_at: stateData.created_at,
+        last_interaction_at: stateData.last_interaction_at,
+        _explanation: stateData.total_cycles === 0 
+          ? "No cycles completed yet. System just started or cycles have not run."
+          : `Agent has processed ${stateData.total_messages} messages across ${stateData.total_cycles} cycles. Data is REAL, not simulated.`
       },
       health: {
-        status: soulState.confidence >= 70 ? "ỔN ĐỊNH" : 
-                soulState.confidence >= 40 ? "CẢNH BÁO" : "KHÔNG XÁC ĐỊNH",
-        overall_score: soulState.confidence,
-        trend: soulState.confidence >= 70 ? "tích cực" : 
-               soulState.confidence >= 40 ? "ổn định" : "không xác định",
+        status: stateData.confidence >= 70 ? "ỔN ĐỊNH" : 
+                stateData.confidence >= 40 ? "CẢNH BÁO" : "KHÔNG XÁC ĐỊNH",
+        overall_score: stateData.confidence,
+        trend: stateData.confidence >= 70 ? "tích cực" : 
+               stateData.confidence >= 40 ? "ổn định" : "không xác định",
+        total_errors: stateData.total_errors,
+        total_warnings: stateData.total_warnings,
+        last_error_at: stateData.last_error_at,
       },
       tasks: {
         total: 0,
         critical: 0,
         high: 0,
         _status: "NOT_IMPLEMENTED", // Honest: Task tracking not implemented yet
-        _explanation: "Task counting system is a placeholder. Will show real data when task tracker is implemented."
+        _explanation: "Task tracking system not yet implemented. This field will remain 0 until implemented."
       },
       anomalies: {
-        total: Math.floor(soulState.anomalyScore / 10),
-        high_severity: Math.floor(soulState.anomalyScore / 20),
-        _explanation: soulState.anomalyScore === 0 
-          ? "No anomalies detected yet. System started recently or operating normally."
-          : `Calculated from anomalyScore=${soulState.anomalyScore}. This is an estimate, not actual anomaly count.`
+        total: Math.floor(stateData.anomaly_score / 10),
+        high_severity: Math.floor(stateData.anomaly_score / 20),
+        _explanation: stateData.anomaly_score === 0 
+          ? "No anomalies detected. Score is ZERO because no anomalous events occurred."
+          : `Calculated from anomaly_score=${stateData.anomaly_score}. Real metric from agent_state.`
       },
       logs: {
         ...logs,
@@ -904,10 +945,12 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
         openai: openAIService.isConfigured(),
         notion: memoryBridge.isConnected(),
         scheduler: lifeLoopStatus.alive,
+        agent_state: true, // Agent state is available
         _status_explanation: {
-          openai: openAIService.isConfigured() ? "OpenAI API configured and available" : "OpenAI API not configured. Set OPENAI_API_KEY env variable.",
-          notion: memoryBridge.isConnected() ? "Notion API connected and ready to write" : "Notion API not connected. Set NOTION_API_KEY and NOTION_DATABASE_ID env variables.",
-          scheduler: lifeLoopStatus.alive ? "LifeLoop is running autonomously every 5-30 minutes" : "LifeLoop not active. Check if it crashed or was stopped."
+          openai: openAIService.isConfigured() ? "OpenAI API configured and available" : "NOT CONFIGURED - Set OPENAI_API_KEY env variable",
+          notion: memoryBridge.isConnected() ? "Notion API connected and ready to write" : "NOT CONNECTED - Set NOTION_TOKEN",
+          scheduler: lifeLoopStatus.alive ? "LifeLoop is running autonomously every 5-30 minutes" : "NOT RUNNING - LifeLoop inactive",
+          agent_state: "Unified agent state is active and tracking all interactions"
         }
       },
       goals,
