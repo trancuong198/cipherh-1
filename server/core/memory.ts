@@ -99,7 +99,31 @@ export class MemoryBridge {
     
     if (!check.shouldWrite) {
       logger.info(`[Memory] Skipped duplicate ${memoryType}: ${check.reason}`);
-      return false; // Return false - nothing was written
+      
+      // CRITICAL: Write a "Skipped" trace so this decision is observable
+      try {
+        const notion = await getUncachableNotionClient();
+        const timestamp = new Date().toISOString();
+        const skipTrace = `🚫 WRITE SKIPPED\n\nReason: ${check.reason}\n\nOriginal content (first 200 chars):\n${text.substring(0, 200)}...\n\n📊 DEDUPLICATION TRACE:\nCycle ID: ${cycle_id}\nTimestamp: ${timestamp}\nMemory Type: ${memoryType.toUpperCase()}\nDecision: SKIPPED (duplicate detected)`;
+        
+        await notion.pages.create({
+          parent: { database_id: this.databaseId },
+          properties: {
+            "tiêu đề": {
+              title: [{ text: { content: `🚫 SKIPPED ${memoryType.toUpperCase()} - Cycle ${cycle_id}` } }]
+            },
+            "cipher h": {
+              rich_text: [{ text: { content: skipTrace.substring(0, 2000) } }]
+            }
+          }
+        });
+        
+        logger.info(`✅ Skip trace written to Notion (cycle=${cycle_id})`);
+      } catch (error) {
+        logger.error(`❌ Could not write skip trace to Notion:`, error);
+      }
+      
+      return false; // Return false - original write was skipped
     }
 
     logger.info(`[Memory] Writing ${memoryType.toUpperCase()} (cycle=${cycle_id}): ${text.substring(0, 50)}...`);
@@ -201,7 +225,32 @@ export class MemoryBridge {
     
     if (!check.shouldWrite) {
       logger.info(`[Memory] Skipped duplicate summary: ${check.reason}`);
-      return false; // Return false - nothing was written
+      
+      // CRITICAL: Write a "Skipped" trace so this decision is observable
+      try {
+        const notion = await getUncachableNotionClient();
+        const timestamp = new Date().toISOString();
+        const cycle_id = existenceAnchor.getCurrentCycleId();
+        const skipTrace = `🚫 SUMMARY WRITE SKIPPED\n\nReason: ${check.reason}\n\nOriginal summary (first 200 chars):\n${summary.substring(0, 200)}...\n\n📊 DEDUPLICATION TRACE:\nCycle ID: ${cycle_id}\nTimestamp: ${timestamp}\nMemory Type: SUMMARY\nDecision: SKIPPED (duplicate detected)`;
+        
+        await notion.pages.create({
+          parent: { database_id: this.databaseId },
+          properties: {
+            "tiêu đề": {
+              title: [{ text: { content: `🚫 SKIPPED SUMMARY - Cycle ${cycle_id}` } }]
+            },
+            "cipher h": {
+              rich_text: [{ text: { content: skipTrace.substring(0, 2000) } }]
+            }
+          }
+        });
+        
+        logger.info(`✅ Skip trace written to Notion (summary, cycle=${cycle_id})`);
+      } catch (error) {
+        logger.error(`❌ Could not write skip trace to Notion:`, error);
+      }
+      
+      return false; // Return false - original write was skipped
     }
 
     logger.info(`Đang ghi tóm tắt hàng ngày vào Notion (${summary.length} ký tự)`);

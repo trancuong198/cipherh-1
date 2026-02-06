@@ -867,6 +867,11 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
         confidence: soulState.confidence,
         energy_level: soulState.energyLevel,
         anomaly_score: soulState.anomalyScore,
+        _cycle_explanation: (lifeLoopStatus.cycleCount === 0 && soulState.cycleCount === 0)
+          ? "Cycle count is 0. Either: (1) Server just started and loops haven't completed first cycle yet, (2) Snapshot files not loading, or (3) Cycles reset. Check data/ directory for snapshots."
+          : lifeLoopStatus.alive 
+            ? `LifeLoop is running. Cycle ${lifeLoopStatus.cycleCount} completed. Snapshot saved to data/life_loop_snapshot.json.`
+            : `Using soulState.cycleCount=${soulState.cycleCount}. LifeLoop not active. Snapshot saved to data/state_snapshot.json.`
       },
       health: {
         status: soulState.confidence >= 70 ? "ỔN ĐỊNH" : 
@@ -879,21 +884,40 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
         total: 0,
         critical: 0,
         high: 0,
+        _status: "NOT_IMPLEMENTED", // Honest: Task tracking not implemented yet
+        _explanation: "Task counting system is a placeholder. Will show real data when task tracker is implemented."
       },
       anomalies: {
         total: Math.floor(soulState.anomalyScore / 10),
         high_severity: Math.floor(soulState.anomalyScore / 20),
+        _explanation: soulState.anomalyScore === 0 
+          ? "No anomalies detected yet. System started recently or operating normally."
+          : `Calculated from anomalyScore=${soulState.anomalyScore}. This is an estimate, not actual anomaly count.`
       },
-      logs,
+      logs: {
+        ...logs,
+        _explanation: logs.total === 0
+          ? "No logs found. Either: (1) Log file doesn't exist yet (server just started), (2) Log file was cleared/rotated, or (3) Logging system not writing. Check logs/app.log file."
+          : `Reading from logs/app.log. File size: ${logs.file_size_kb}KB. Total lines: ${logs.total}.`
+      },
       services: {
         openai: openAIService.isConfigured(),
         notion: memoryBridge.isConnected(),
         scheduler: lifeLoopStatus.alive,
+        _status_explanation: {
+          openai: openAIService.isConfigured() ? "OpenAI API configured and available" : "OpenAI API not configured. Set OPENAI_API_KEY env variable.",
+          notion: memoryBridge.isConnected() ? "Notion API connected and ready to write" : "Notion API not connected. Set NOTION_API_KEY and NOTION_DATABASE_ID env variables.",
+          scheduler: lifeLoopStatus.alive ? "LifeLoop is running autonomously every 5-30 minutes" : "LifeLoop not active. Check if it crashed or was stopped."
+        }
       },
       goals,
       current_focus: soulState.currentFocus,
       last_reflection: lastReflection,
+      reflection_status: lastReflection === "Chưa có phản ánh..."
+        ? "No reflections yet. Either: (1) Reflection loop hasn't run, (2) No reflections stored, or (3) Reflection system not writing to storage."
+        : "Reflection loaded successfully from reflectionLoop system.",
       updated_at: new Date().toISOString(),
+      _truth_philosophy: "This dashboard shows REAL data or explains WHY it's zero. No fake counters. If something is 'Not Implemented', we say so honestly.",
       // Time information for AGI scheduling
       system_time: {
         current_time: now.toISOString(),
