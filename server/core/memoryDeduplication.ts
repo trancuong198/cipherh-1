@@ -37,6 +37,7 @@ export interface DeduplicationConfig {
 class MemoryDeduplicationSystem {
   private recentMemories: MemoryRecord[] = [];
   private memoryHashes: Set<string> = new Set(); // For fast exact match detection
+  private lastCycleId: string | null = null; // Track last cycle for deduplication
   private deduplicationStats = {
     totalChecks: 0,
     duplicatesFound: 0,
@@ -54,10 +55,16 @@ class MemoryDeduplicationSystem {
 
   /**
    * Check if content should be written (not duplicate)
+   * 
+   * NEW RULES:
+   * 1. NEVER dedupe if cycle_id differs
+   * 2. Only dedupe EVENT type within same cycle
+   * 3. NEVER dedupe: STATE, DIAGNOSTIC, REFLECTION
    */
   async shouldWrite(
     content: string,
-    type: 'lesson' | 'summary' | 'strategy' | 'reflection',
+    type: 'lesson' | 'summary' | 'strategy' | 'reflection' | 'event' | 'state' | 'diagnostic',
+    cycleId?: string,
     config: Partial<DeduplicationConfig> = {}
   ): Promise<{
     shouldWrite: boolean;
@@ -67,7 +74,37 @@ class MemoryDeduplicationSystem {
     const finalConfig = { ...this.defaultConfig, ...config };
     this.deduplicationStats.totalChecks++;
 
-    logger.debug(`[Deduplication] Checking content (${content.length} chars, type: ${type})`);
+    logger.debug(`[Deduplication] Checking content (${content.length} chars, type: ${type}, cycle: ${cycleId || 'none'})`);
+
+    // RULE 1: STATE, DIAGNOSTIC, REFLECTION are NEVER deduplicated
+    if (type === 'state' || type === 'diagnostic' || type === 'reflection') {
+      logger.info(`[Deduplication] ${type.toUpperCase()} type - ALWAYS WRITE (never dedupe)`);
+      this.deduplicationStats.newMemoriesWritten++;
+      return {
+        shouldWrite: true,
+        reason: `${type.toUpperCase()} memories are never deduplicated`,
+      };
+    }
+
+    // RULE 2: If cycle_id provided, check if it's different from last writes
+    // Different cycle_id = ALWAYS WRITE (even if content identical)
+    if (cycleId && this.lastCycleId && cycleId !== this.lastCycleId) {
+      logger.info(`[Deduplication] Different cycle_id (${cycleId} vs ${this.lastCycleId}) - ALWAYS WRITE`);
+      this.deduplicationStats.newMemoriesWritten++;
+      this.lastCycleId = cycleId;
+      return {
+        shouldWrite: true,
+        reason: 'Different cycle - continuous existence tracking',
+      };
+    }
+
+    // Update last cycle ID if provided
+    if (cycleId) {
+      this.lastCycleId = cycleId;
+    }
+
+    // RULE 3: For EVENT type within same cycle, apply deduplication
+    // This is the only case where we dedupe
 
     // Step 1: Load recent memories if cache is empty
     if (this.recentMemories.length === 0) {
@@ -79,26 +116,26 @@ class MemoryDeduplicationSystem {
       const hash = this.hashContent(content);
       if (this.memoryHashes.has(hash)) {
         this.deduplicationStats.duplicatesFound++;
-        logger.info('[Deduplication] Exact duplicate detected (hash match) - SKIP');
+        logger.info('[Deduplication] Exact duplicate detected (hash match) within same cycle - SKIP');
         return {
           shouldWrite: false,
-          reason: 'Exact duplicate - hash match',
+          reason: 'Exact duplicate within same cycle - hash match',
         };
       }
     }
 
-    // Step 3: Keyword-based similarity check
-    if (finalConfig.enableKeywordCheck) {
+    // Step 3: Keyword-based similarity check (only for event type)
+    if (type === 'event' && finalConfig.enableKeywordCheck) {
       const similarity = this.findMostSimilar(content, finalConfig);
       
       if (similarity.isSimilar) {
         this.deduplicationStats.duplicatesFound++;
         logger.info(
-          `[Deduplication] Similar content detected (${Math.round(similarity.score)}% match) - SKIP`
+          `[Deduplication] Similar event detected (${Math.round(similarity.score)}% match) within same cycle - SKIP`
         );
         return {
           shouldWrite: false,
-          reason: `Too similar to existing memory (${Math.round(similarity.score)}%)`,
+          reason: `Too similar to existing event within same cycle (${Math.round(similarity.score)}%)`,
           similarity,
         };
       }
