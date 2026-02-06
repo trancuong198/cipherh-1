@@ -21,6 +21,8 @@ import { memoryBridge } from '../core/memory';
 import { memoryDeduplicationSystem } from '../core/memoryDeduplication';
 import { episodicMemorySystem } from '../core/episodicMemory';
 import { entityMemorySystem } from '../core/entityMemory';
+import { agentState } from '../core/agentState';
+import { existenceAnchor } from '../core/existenceAnchor';
 
 const PAGE_ACCESS_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN?.trim() || '';
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID?.trim() || '';
@@ -234,6 +236,23 @@ export async function autoReplyToComment(
     // ====================================================================================
     // NOW we can proceed with processing - raw input is safely logged
     // ====================================================================================
+    
+    // ====================================================================================
+    // AGENT STATE UPDATE - Record this message in unified state
+    // ====================================================================================
+    try {
+      await agentState.recordMessage({
+        platform: 'facebook',
+        user_id: commentId,
+        user_role: 'user', // Facebook comments are from users, not owner
+        message: commentText,
+        cycle_id: existenceAnchor.getCurrentCycleId(),
+      });
+      logger.info(`[Facebook:AGENT_STATE] Message recorded in unified state`);
+    } catch (error) {
+      logger.error(`[Facebook] Failed to record message in agent_state: ${error}`);
+      // Continue anyway - don't block conversation
+    }
     
     // Tạo reply có linh hồn như người thật
     const reply = await createSoulfulFacebookReply(commentText, postContext);

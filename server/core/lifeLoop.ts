@@ -28,6 +28,7 @@ import { selfDiagnostics } from './selfDiagnostics';
 import { autonomousResearch } from './autonomousResearch';
 import { escalationProtocol } from './escalationProtocol';
 import { existenceAnchor } from './existenceAnchor';
+import { agentState } from './agentState';
 import * as fs from 'fs';
 
 // ================================================
@@ -158,6 +159,17 @@ class LifeLoop {
     this.state.lastCycleAt = Date.now();
 
     logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} - Starting life cycle (existence_cycle=${cycleId})`);
+    
+    // ====================================================================================
+    // AGENT STATE UPDATE - Record cycle completion in unified state
+    // ====================================================================================
+    try {
+      await agentState.recordCycleCompletion(cycleId);
+      logger.info(`[LifeLoop] Cycle ${cycleId} recorded in agent_state`);
+    } catch (error) {
+      logger.error(`[LifeLoop] Failed to record cycle in agent_state: ${error}`);
+      // Continue anyway - don't block lifecycle
+    }
 
     try {
       // 1. PERCEIVE - Thu thập thế giới
