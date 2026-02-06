@@ -108,13 +108,7 @@ class OpenAIProvider implements ILLMProvider {
     const startTime = Date.now();
 
     if (!this.client) {
-      return {
-        content: '[Placeholder] LLM not configured - returning mock response',
-        tokensUsed: 0,
-        finishReason: 'placeholder',
-        provider: this.id,
-        latencyMs: 0,
-      };
+      throw new Error('LLM_UNAVAILABLE: OpenAI client not configured');
     }
 
     try {
@@ -236,69 +230,3 @@ Respond with JSON only: {"scores": {"criterion1": score, ...}, "overall": averag
   }
 }
 
-class PlaceholderLLMProvider implements ILLMProvider {
-  id = 'placeholder';
-  name = 'Placeholder LLM';
-  type: 'llm' = 'llm';
-
-  isConfigured(): boolean {
-    return true;
-  }
-
-  async getHealth(): Promise<ProviderHealth> {
-    return {
-      status: 'healthy',
-      latencyMs: 0,
-      lastCheck: new Date().toISOString(),
-      errorCount: 0,
-      successRate: 100,
-    };
-  }
-
-  getLimits(): ProviderLimits {
-    return {
-      requestsPerMinute: 1000,
-      tokensPerRequest: 10000,
-      dailyQuota: 1000000,
-      currentUsage: 0,
-    };
-  }
-
-  getCost(): ProviderCost {
-    return {
-      costPerRequest: 0,
-      costPerToken: 0,
-      dailyCost: 0,
-      monthlyCost: 0,
-    };
-  }
-
-  async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
-    return {
-      content: `[Placeholder Response] Processed prompt of ${request.prompt.length} characters`,
-      tokensUsed: 0,
-      finishReason: 'placeholder',
-      provider: this.id,
-      latencyMs: 10,
-    };
-  }
-
-  async embed(_request: LLMEmbedRequest): Promise<LLMEmbedResponse> {
-    return {
-      embedding: new Array(1536).fill(0.1),
-      dimensions: 1536,
-      provider: this.id,
-    };
-  }
-
-  async score(_request: LLMScoreRequest): Promise<LLMScoreResponse> {
-    return {
-      scores: {},
-      overallScore: 50,
-      provider: this.id,
-    };
-  }
-}
-
-export const openAIProvider = new OpenAIProvider();
-export const placeholderLLMProvider = new PlaceholderLLMProvider();
