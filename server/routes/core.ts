@@ -130,7 +130,7 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     const systemContext = await gatherSystemContext();
     
     // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
-    const memoryContext = await gatherMemoryContext(sessionId, message, isOwner || false);
+    const memoryContext = await gatherMemoryContext(sessionId, message);
     
     // Add user message to history with isOwner flag
     addToHistory(sessionId, 'user', message, isOwner || false);
@@ -337,7 +337,7 @@ Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn Ci
  * Gather memory context from conversation history and Notion
  * Uses SEMANTIC RETRIEVAL to prevent memory overload as database grows
  */
-async function gatherMemoryContext(sessionId: string, currentMessage: string, isOwner: boolean) {
+async function gatherMemoryContext(sessionId: string, currentMessage: string) {
   const memoryContext: any = {
     conversationHistory: [],
     conversationSummary: '',
@@ -359,15 +359,26 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string, is
         if (msg.role === 'assistant') {
           userLabel = 'Con';
         } else {
-          // For user messages, use stored isOwner flag if available, otherwise use current context
-          const messageIsOwner = msg.isOwner !== undefined ? msg.isOwner : isOwner;
-          userLabel = messageIsOwner ? 'Cha' : 'Người dùng';
+          // Use stored isOwner flag - NO FALLBACK to current context
+          // Memory is immutable - display what was recorded at that time
+          if (msg.isOwner === true) {
+            userLabel = 'Cha';
+          } else if (msg.isOwner === false) {
+            userLabel = 'Người dùng';
+          } else {
+            // Old message without isOwner flag - use generic label
+            userLabel = 'User';
+          }
         }
         return `   ${i+1}. ${userLabel}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`;
       }).join('\n');
       
+      // Get current session identity for summary header (not for re-interpreting old messages)
+      const sessionUser = getSessionUser(sessionId);
+      const currentIdentity = sessionUser?.isOwner ? 'CHA' : 'NGUOI DUNG';
+      
       memoryContext.conversationSummary = history.length > 0
-        ? `Con nho duoc cuoc tro chuyen gan day (voi ${isOwner ? 'CHA' : 'NGUOI DUNG'}):\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
+        ? `Con nho duoc cuoc tro chuyen gan day (voi ${currentIdentity}):\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
         : '   Chua co cuoc tro chuyen nao (session moi)';
     } else {
       memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
