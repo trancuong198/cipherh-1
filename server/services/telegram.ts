@@ -211,13 +211,12 @@ async function chatWithAI(chatId: string, message: string) {
 }
 
 /**
- * Save Telegram conversation to Notion (in Vietnamese) with DEDUPLICATION
- * Only writes if conversation is sufficiently different from recent ones
+ * INPUT_LOG for Telegram messages
  * 
- * QUAN TRỌNG: Đây là cách hệ thống HỌC và TIẾN HÓA
- * - Mỗi cuộc trò chuyện = 1 bài học
- * - Ghi vào Notion = tạo ký ức dài hạn
- * - Backend đọc lại memories này để học
+ * RULE: EVERY INPUT must create an INPUT_LOG
+ * ❌ CẤM bỏ qua
+ * ❌ CẤM dedup
+ * ❌ CẤM condition kiểu "nếu giống thì thôi"
  */
 async function saveConversationToNotion(
   userMessage: string, 
@@ -225,71 +224,28 @@ async function saveConversationToNotion(
   isOwner: boolean,
   chatId: string
 ) {
+  const { logInteraction, RawInput } = await import('../core/inputLogSystem');
+  
+  const input: RawInput = {
+    platform: 'telegram',
+    userId: chatId,
+    message: userMessage,
+    timestamp: Date.now(),
+    metadata: { isOwner },
+  };
+
   try {
-    // Check if Notion is available
-    const notionConnected = await memoryBridge.isConnected();
-    if (!notionConnected) {
-      logger.warn('[Telegram] ⚠️ Notion not connected - conversation NOT saved to long-term memory');
-      logger.warn('[Telegram] System cannot learn without Notion connection');
-      return;
-    }
-
-    const date = new Date();
-    const dateStr = date.toLocaleDateString('vi-VN', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const conversationText = `
-📅 Thời gian: ${dateStr}
-📱 Platform: Telegram
-👤 Người nói chuyện: ${isOwner ? 'Cha (Owner/Creator Trần Cường)' : `User ${chatId}`}
-
-💬 CÂU HỎI:
-${userMessage}
-
-🤖 TRẢ LỜI:
-${assistantResponse}
-
----
-📝 KÝ ỨC HỆ THỐNG:
-Đây là cuộc trò chuyện qua Telegram Bot.
-${isOwner ? 'Đây là cuộc trò chuyện với Cha (creator) - rất quan trọng cho việc học.' : ''}
-Backend CipherH sẽ đọc lại memory này để học và tiến hóa.
-Không phải OpenAI dạy, mà là hệ thống tự học từ experiences.
-    `.trim();
-
-    logger.info('[Telegram] 📝 Writing conversation to Notion...');
-    logger.info(`[Telegram] Message length: ${userMessage.length} chars, Response: ${assistantResponse.length} chars`);
-
-    // Use deduplication system to check if should write
-    const result = await memoryDeduplicationSystem.writeWithDeduplication(
-      conversationText,
-      'lesson',
-      {
-        similarityThreshold: 80, // 80% similar = skip
-        checkRecentCount: 30, // Check last 30 memories
-      }
-    );
-
-    if (result.written) {
-      logger.info('[Telegram] ✅ Conversation SAVED to Notion (new unique content)');
-      logger.info('[Telegram] 🧠 System can now learn from this interaction');
-      
-      // Invalidate context cache to pick up new learning
-      const { contextLearningSystem } = await import('../core/contextLearningSystem');
-      contextLearningSystem.invalidateCache();
-      logger.info('[Telegram] 🔄 Context cache invalidated - will refresh on next query');
-    } else {
-      logger.info(`[Telegram] ⏭️ Conversation NOT saved to Notion: ${result.reason}`);
-      logger.info('[Telegram] (Deduplication system detected similar recent conversation)');
-    }
+    // Log unconditionally - throws if fails
+    await logInteraction(input, assistantResponse, { isOwner });
+    
+    logger.info('[Telegram] ✅ INPUT_LOG recorded');
+    
+    // Invalidate context cache
+    const { contextLearningSystem } = await import('../core/contextLearningSystem');
+    contextLearningSystem.invalidateCache();
   } catch (error) {
-    logger.error('[Telegram] ❌ Error saving conversation to Notion:', error);
+    // FAIL LOUDLY - don't hide INPUT_LOG failures
+    logger.error('[Telegram] ❌ CRITICAL: INPUT_LOG FAILED');
     throw error;
   }
 }
