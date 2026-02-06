@@ -11,3 +11,4 @@ data/*.json
 
 # Test files
 test-openai-fix.js
+test-existence-anchor.ts
