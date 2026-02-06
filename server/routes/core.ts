@@ -125,6 +125,55 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'} (session: ${sessionId}): ${message.substring(0, 50)}...`);
 
     // ====================================================================================
+    // MANDATORY: LOG RAW INPUT FIRST - BEFORE ANY PROCESSING (including Soul Anchor)
+    // System CANNOT respond without logging. This is NON-NEGOTIABLE.
+    // ====================================================================================
+    const { logRawInput, isLoggingAvailable, getStorageUnavailableMessage } = await import('../core/inputLogSystem');
+    
+    // STEP 1: Check if logging is available
+    const loggingAvailable = await isLoggingAvailable();
+    
+    if (!loggingAvailable) {
+      // CRITICAL: Cannot proceed without logging
+      logger.error('[Chat:CRITICAL] Storage unavailable - CANNOT RESPOND');
+      const errorMessage = getStorageUnavailableMessage('web');
+      return res.status(503).json({
+        error: "Storage unavailable",
+        response: errorMessage,
+        reason: 'STORAGE_UNAVAILABLE'
+      });
+    }
+    
+    // STEP 2: Log raw input BEFORE any processing (even before Soul Anchor)
+    const logResult = await logRawInput({
+      platform: 'web',
+      source: 'chat',
+      sender_id: sessionId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: `web-${sessionId}-${Date.now()}`,
+      processing_status: 'pending',
+      metadata: { isOwner }, // This is request claim, may be overridden by verification
+    });
+    
+    if (!logResult.success) {
+      // CRITICAL: Logging failed - cannot proceed
+      logger.error(`[Chat:CRITICAL] Raw input logging failed: ${logResult.error}`);
+      const errorMessage = getStorageUnavailableMessage('web');
+      return res.status(503).json({
+        error: "Logging failed",
+        response: errorMessage,
+        reason: 'LOGGING_FAILED'
+      });
+    }
+    
+    logger.info(`[Chat:INPUT_LOGGED] Conv:${logResult.conversation_id} - Now processing...`);
+    
+    // ====================================================================================
+    // NOW we can proceed with Soul Anchor - raw input is safely logged
+    // ====================================================================================
+
+    // ====================================================================================
     // SOUL ANCHOR CHECKPOINT - ALL conversations MUST pass through identity core first
     // This ensures continuous identity across ALL platforms
     // ====================================================================================
@@ -153,6 +202,18 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       // Add fixed response to history
       const fixedResponse = anchorCheck.userVerification.fixedResponse;
       addToHistory(sessionId, 'assistant', fixedResponse);
+      
+      // Log complete interaction
+      const { logInteraction } = await import('../core/inputLogSystem');
+      await logInteraction({
+        platform: 'web',
+        source: 'chat',
+        sender_id: sessionId,
+        raw_text: message,
+        timestamp: Date.now(),
+        conversation_id: logResult.conversation_id,
+        processing_status: 'processed',
+      }, fixedResponse);
       
       // Return EXACT fixed response - no AI processing
       return res.json({
@@ -297,7 +358,27 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       logger.warn(`[Chat:Anchor] Response contains ${responseValidation.warnings.length} identity warnings`);
     }
     // ====================================================================================
-
+    
+    // === LOG COMPLETE INTERACTION ===
+    logger.info('[Chat] Logging complete interaction...');
+    const { logInteraction } = await import('../core/inputLogSystem');
+    
+    const interactionLogResult = await logInteraction({
+      platform: 'web',
+      source: 'chat',
+      sender_id: sessionId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: logResult.conversation_id,
+      processing_status: 'processed',
+      metadata: { verifiedIsOwner },
+    }, finalResponse);
+    
+    if (interactionLogResult.success) {
+      logger.info('[Chat] ✅ Complete interaction logged');
+    } else {
+      logger.error(`[Chat] ❌ Interaction logging failed: ${interactionLogResult.error}`);
+    }
     
     // 5. Record this conversation as an episode (with final response including question)
     const episode = episodicMemorySystem.recordConversation({
@@ -309,14 +390,6 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     
     logger.info(`[Chat] Recorded episode ${episode.id} with ${involvedEntities.length} entities`);
 
-
-    // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
-    if (memoryBridge.isConnected()) {
-      saveConversationToNotion(message, finalResponse, verifiedIsOwner).catch(err => {
-        logger.error('[Chat] Failed to save conversation to Notion:', err);
-      });
-    }
-    
     logger.info(`[Chat] Response generated: ${finalResponse.substring(0, 50)}...`);
 
     // === EXPERIENCE-BASED LEARNING: RECORD THIS INTERACTION ===
