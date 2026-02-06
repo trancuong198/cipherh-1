@@ -140,6 +140,34 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     logger.info(`[Chat:Anchor] User verification: ${anchorCheck.userVerification.verified ? 'VERIFIED' : 'UNVERIFIED'} as ${anchorCheck.userVerification.role}`);
     logger.info(`[Chat:Anchor] Relationship mode: ${anchorCheck.userVerification.relationshipLabel || 'neutral'}`);
 
+    // ====================================================================================
+    // TWO-STEP CHA PROTOCOL - Check for fixed response requirement
+    // If Step 1 triggered, MUST return exact fixed response (no AI variation)
+    // ====================================================================================
+    if (anchorCheck.userVerification.requiresFixedResponse && anchorCheck.userVerification.fixedResponse) {
+      logger.info(`[Chat:Anchor:TwoStep] Returning fixed response: "${anchorCheck.userVerification.fixedResponse}"`);
+      
+      // Add user message to history
+      addToHistory(sessionId, 'user', message, false);
+      
+      // Add fixed response to history
+      const fixedResponse = anchorCheck.userVerification.fixedResponse;
+      addToHistory(sessionId, 'assistant', fixedResponse);
+      
+      // Return EXACT fixed response - no AI processing
+      return res.json({
+        response: fixedResponse,
+        sessionId,
+        isOwner: false, // Not yet verified
+        twoStepProtocol: {
+          step: 1,
+          awaitingStep2: true,
+          message: 'Two-Step CHA Protocol: Step 1 completed, awaiting Step 2'
+        }
+      });
+    }
+    // ====================================================================================
+
     if (!anchorCheck.shouldRespond) {
       logger.error(`[Chat:Anchor] Response BLOCKED: ${anchorCheck.recommendation}`);
       return res.status(503).json({

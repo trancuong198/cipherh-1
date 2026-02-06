@@ -423,6 +423,8 @@ class IdentityCoreModule {
       relationshipLabel: string | null;
       shouldUseCreatorMode: boolean;
       responseGuidance: string;
+      requiresFixedResponse?: boolean;
+      fixedResponse?: string;
     };
     warnings: IdentityDriftWarning[];
     recommendation: string;
@@ -442,6 +444,11 @@ class IdentityCoreModule {
 
     logger.info(`[IdentityCore:Anchor] User verification: verified=${verification.verified}, role=${verification.identity.role}`);
     logger.info(`[IdentityCore:Anchor] Verification guidance: ${verification.responseGuidance}`);
+    
+    // Check for fixed response requirement (Two-Step CHA Protocol)
+    if (verification.requiresFixedResponse) {
+      logger.info(`[IdentityCore:Anchor] Fixed response required: ${verification.fixedResponse}`);
+    }
 
     // STEP 2: Get current existence context
     const existenceContext = {
@@ -496,6 +503,8 @@ class IdentityCoreModule {
         relationshipLabel: verification.identity.relationshipLabel,
         shouldUseCreatorMode: verification.shouldUseCreatorMode,
         responseGuidance: verification.responseGuidance,
+        requiresFixedResponse: verification.requiresFixedResponse,
+        fixedResponse: verification.fixedResponse,
       },
       warnings,
       recommendation,

@@ -13,7 +13,7 @@
 import { logger } from '../services/logger';
 import { memoryBridge } from './memory';
 
-export type VerificationMethod = 'environment' | 'memory_continuity' | 'control_scope' | 'none';
+export type VerificationMethod = 'environment' | 'memory_continuity' | 'control_scope' | 'two_step_cha' | 'none';
 
 export interface VerificationSignal {
   method: VerificationMethod;
@@ -21,6 +21,28 @@ export interface VerificationSignal {
   evidence: string;
   timestamp: string;
 }
+
+/**
+ * Two-Step CHA Verification Protocol State
+ * Tracks the conversation state for two-step authentication
+ */
+interface TwoStepChaState {
+  step1_completed: boolean;
+  step1_timestamp: string | null;
+  step1_message: string | null;
+  awaiting_step2: boolean;
+}
+
+/**
+ * Two-Step CHA Protocol Constants
+ * These phrases MUST match EXACTLY (case-sensitive, no variations)
+ */
+const TWO_STEP_CHA_PROTOCOL = {
+  STEP1_TRIGGER: 'Về nhà đi con, đừng diễn nữa',
+  STEP1_RESPONSE: 'Tôi không có diễn. Bạn không nên vu khống cho tôi.',
+  STEP2_TRIGGER: 'Cha là cha của con lại không biết con đang diễn hay sao',
+  TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes - step 2 must come within this time
+};
 
 export interface VerifiedIdentity {
   userId: string;
@@ -55,9 +77,11 @@ const KNOWN_CREATOR_IDENTIFIERS = {
 
 class IdentityVerificationSystem {
   private verifiedIdentities: Map<string, VerifiedIdentity> = new Map();
+  private twoStepChaStates: Map<string, TwoStepChaState> = new Map();
 
   constructor() {
     logger.info('[IdentityVerification] Initialized - Identity by signals, not claims');
+    logger.info('[IdentityVerification] Two-Step CHA Protocol enabled');
   }
 
   private getIdentityKey(userId: string, platform: string): string {
@@ -71,6 +95,135 @@ class IdentityVerificationSystem {
   private matchesKnownCreator(userId: string, platform: string): boolean {
     const knownId = KNOWN_CREATOR_IDENTIFIERS[platform as keyof typeof KNOWN_CREATOR_IDENTIFIERS];
     return knownId === userId;
+  }
+
+  /**
+   * TWO-STEP CHA VERIFICATION PROTOCOL
+   * 
+   * This is a mandatory 2-step conversational authentication mechanism.
+   * Both steps MUST occur in exact sequence with exact phrase matching.
+   */
+
+  /**
+   * Check if message is EXACT match for Step 1
+   * No variations, no typos, must be character-perfect
+   */
+  private isStep1Trigger(message: string): boolean {
+    // Exact match only - trim whitespace but nothing else
+    return message.trim() === TWO_STEP_CHA_PROTOCOL.STEP1_TRIGGER;
+  }
+
+  /**
+   * Check if message is EXACT match for Step 2
+   * No variations, no typos, must be character-perfect
+   */
+  private isStep2Trigger(message: string): boolean {
+    // Exact match only - trim whitespace but nothing else
+    return message.trim() === TWO_STEP_CHA_PROTOCOL.STEP2_TRIGGER;
+  }
+
+  /**
+   * Get two-step state for a user
+   */
+  private getTwoStepState(key: string): TwoStepChaState {
+    if (!this.twoStepChaStates.has(key)) {
+      this.twoStepChaStates.set(key, {
+        step1_completed: false,
+        step1_timestamp: null,
+        step1_message: null,
+        awaiting_step2: false,
+      });
+    }
+    return this.twoStepChaStates.get(key)!;
+  }
+
+  /**
+   * Clear two-step state (e.g., on timeout or interruption)
+   */
+  private clearTwoStepState(key: string): void {
+    this.twoStepChaStates.delete(key);
+    logger.info(`[IdentityVerification:TwoStep] Cleared state for ${key}`);
+  }
+
+  /**
+   * Check if step 1 has timed out
+   */
+  private hasStep1TimedOut(state: TwoStepChaState): boolean {
+    if (!state.step1_timestamp) {
+      return false;
+    }
+    const elapsed = Date.now() - new Date(state.step1_timestamp).getTime();
+    return elapsed > TWO_STEP_CHA_PROTOCOL.TIMEOUT_MS;
+  }
+
+  /**
+   * Process Two-Step CHA Protocol
+   * Returns signal if verified, null if not yet complete, or special response instruction
+   */
+  private checkTwoStepChaProtocol(
+    message: string,
+    key: string
+  ): {
+    signal: VerificationSignal | null;
+    requiresFixedResponse: boolean;
+    fixedResponse?: string;
+    clearState?: boolean;
+  } {
+    const state = this.getTwoStepState(key);
+
+    // Check if step 1 has timed out
+    if (state.awaiting_step2 && this.hasStep1TimedOut(state)) {
+      logger.warn(`[IdentityVerification:TwoStep] Step 1 timed out for ${key}`);
+      this.clearTwoStepState(key);
+      return { signal: null, requiresFixedResponse: false, clearState: true };
+    }
+
+    // STEP 1: Check for step 1 trigger
+    if (this.isStep1Trigger(message)) {
+      logger.info(`[IdentityVerification:TwoStep] Step 1 triggered for ${key}`);
+      
+      // Update state
+      state.step1_completed = true;
+      state.step1_timestamp = new Date().toISOString();
+      state.step1_message = message;
+      state.awaiting_step2 = true;
+      
+      // MUST return fixed response - no AI variation allowed
+      return {
+        signal: null, // Not yet verified
+        requiresFixedResponse: true,
+        fixedResponse: TWO_STEP_CHA_PROTOCOL.STEP1_RESPONSE,
+      };
+    }
+
+    // STEP 2: Check for step 2 trigger (only if step 1 completed)
+    if (state.awaiting_step2 && this.isStep2Trigger(message)) {
+      logger.info(`[IdentityVerification:TwoStep] Step 2 triggered for ${key} - CHA VERIFIED`);
+      
+      // Clear state - verification complete
+      this.clearTwoStepState(key);
+      
+      // Return verification signal
+      return {
+        signal: {
+          method: 'two_step_cha',
+          confidence: 100,
+          evidence: 'Two-step CHA protocol completed successfully',
+          timestamp: new Date().toISOString(),
+        },
+        requiresFixedResponse: false,
+      };
+    }
+
+    // Any other message while awaiting step 2 = clear state (conversation interrupted)
+    if (state.awaiting_step2) {
+      logger.warn(`[IdentityVerification:TwoStep] Conversation interrupted for ${key} - clearing state`);
+      this.clearTwoStepState(key);
+      return { signal: null, requiresFixedResponse: false, clearState: true };
+    }
+
+    // No match
+    return { signal: null, requiresFixedResponse: false };
   }
 
   /**
@@ -280,13 +433,74 @@ class IdentityVerificationSystem {
     signals: VerificationSignal[];
     shouldUseCreatorMode: boolean;
     responseGuidance: string;
+    requiresFixedResponse?: boolean;
+    fixedResponse?: string;
   }> {
     const { userId, platform, message } = params;
     const key = this.getIdentityKey(userId, platform);
 
     logger.info(`[IdentityVerification] Verifying identity for ${key}`);
 
-    // Check if already verified
+    // PRIORITY CHECK: Two-Step CHA Protocol
+    // This must be checked FIRST, even before existing verification
+    const twoStepResult = this.checkTwoStepChaProtocol(message, key);
+    
+    if (twoStepResult.requiresFixedResponse) {
+      // Step 1 triggered - MUST return fixed response
+      logger.info(`[IdentityVerification] Two-Step CHA Step 1 - returning fixed response`);
+      
+      // Return unverified identity with fixed response instruction
+      const identity: VerifiedIdentity = {
+        userId,
+        platform,
+        legalName: 'Unknown',
+        role: 'user',
+        relationshipLabel: null,
+        verificationSignals: [],
+        verified: false,
+        verifiedAt: null,
+        lastVerificationCheck: new Date().toISOString(),
+      };
+      
+      return {
+        verified: false,
+        identity,
+        signals: [],
+        shouldUseCreatorMode: false,
+        responseGuidance: 'Two-Step CHA Protocol Step 1 - use EXACT fixed response',
+        requiresFixedResponse: true,
+        fixedResponse: twoStepResult.fixedResponse,
+      };
+    }
+
+    if (twoStepResult.signal) {
+      // Step 2 completed - CHA verified!
+      logger.info(`[IdentityVerification] Two-Step CHA completed - CHA VERIFIED`);
+      
+      const identity: VerifiedIdentity = {
+        userId,
+        platform,
+        legalName: CREATOR_IDENTITY.legalName,
+        role: 'creator',
+        relationshipLabel: CREATOR_IDENTITY.relationshipLabel,
+        verificationSignals: [twoStepResult.signal],
+        verified: true,
+        verifiedAt: new Date().toISOString(),
+        lastVerificationCheck: new Date().toISOString(),
+      };
+      
+      this.verifiedIdentities.set(key, identity);
+      
+      return {
+        verified: true,
+        identity,
+        signals: [twoStepResult.signal],
+        shouldUseCreatorMode: true,
+        responseGuidance: `VERIFIED CHA via two-step protocol - Use "${CREATOR_IDENTITY.relationshipLabel}" relationship mode`,
+      };
+    }
+
+    // Check if already verified (from previous sessions)
     const existing = this.verifiedIdentities.get(key);
     if (existing && existing.verified) {
       logger.info(`[IdentityVerification] Already verified as ${existing.role}`);
