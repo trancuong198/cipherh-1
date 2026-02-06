@@ -42,8 +42,7 @@ export class MemoryBridge {
   async writeLesson(text: string): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log("[Placeholder] Ghi bài học:", text.substring(0, 50) + "...");
-      return true;
+      throw new Error('NOTION_UNAVAILABLE: Cannot write lesson - Notion not connected');
     }
 
     // Import deduplication dynamically to avoid circular dependency
@@ -57,7 +56,7 @@ export class MemoryBridge {
     
     if (!check.shouldWrite) {
       console.log(`[Memory] Skipped duplicate lesson: ${check.reason}`);
-      return true; // Return true to indicate "handled" (even though skipped)
+      return false; // Return false - nothing was written
     }
 
     console.log(`Đang ghi bài học vào Notion: ${text.substring(0, 50)}...`);
@@ -135,8 +134,7 @@ export class MemoryBridge {
   async writeDailySummary(summary: string): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log("[Placeholder] Ghi tóm tắt hàng ngày:", summary.substring(0, 50) + "...");
-      return true;
+      throw new Error('NOTION_UNAVAILABLE: Cannot write daily summary - Notion not connected');
     }
 
     // Import deduplication dynamically
@@ -150,7 +148,7 @@ export class MemoryBridge {
     
     if (!check.shouldWrite) {
       console.log(`[Memory] Skipped duplicate summary: ${check.reason}`);
-      return true;
+      return false; // Return false - nothing was written
     }
 
     console.log(`Đang ghi tóm tắt hàng ngày vào Notion (${summary.length} ký tự)`);
@@ -185,8 +183,7 @@ export class MemoryBridge {
   async writeStateSnapshot(state: SoulStateExport): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Ghi trạng thái: cycle=${state.cycle_count}, doubts=${state.doubts}`);
-      return true;
+      throw new Error('NOTION_UNAVAILABLE: Cannot write state snapshot - Notion not connected');
     }
 
     console.log(`Đang ghi trạng thái soul vào Notion (cycle=${state.cycle_count})`);
@@ -235,8 +232,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
   async writeStrategyNote(note: string, strategyType: string = "general"): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Ghi chiến lược ${strategyType}:`, note.substring(0, 50) + "...");
-      return true;
+      throw new Error('NOTION_UNAVAILABLE: Cannot write strategy note - Notion not connected');
     }
 
     // Import deduplication dynamically
@@ -250,7 +246,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
     
     if (!check.shouldWrite) {
       console.log(`[Memory] Skipped duplicate strategy: ${check.reason}`);
-      return true;
+      return false; // Return false - nothing was written
     }
 
     console.log(`Đang ghi chiến lược ${strategyType} vào Notion`);
@@ -293,8 +289,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
   async storeReflection(reflectionText: string, metadata?: Record<string, unknown>): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Lưu suy ngẫm:`, reflectionText.substring(0, 50) + "...");
-      return true;
+      throw new Error('NOTION_UNAVAILABLE: Cannot store reflection - Notion not connected');
     }
 
     // Import deduplication dynamically
@@ -308,7 +303,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
     
     if (!check.shouldWrite) {
       console.log(`[Memory] Skipped duplicate reflection: ${check.reason}`);
-      return true;
+      return false; // Return false - nothing was written
     }
 
     console.log(`Đang lưu suy ngẫm vào Notion (${reflectionText.length} ký tự)`);
@@ -354,8 +349,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
   async readRecentMemories(limit: number = 10, memoryType?: string): Promise<MemoryRecord[]> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Reading ${limit} recent memories (type=${memoryType || "all"})`);
-      return [];
+      throw new Error('NOTION_UNAVAILABLE: Cannot read memories - Notion not connected');
     }
 
     console.log(`Reading ${limit} recent memories from Notion`);
@@ -389,8 +383,7 @@ ${state.reflection || 'Chưa có suy ngẫm...'}
   async searchMemory(query: string): Promise<MemoryRecord[]> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {
-      console.log(`[Placeholder] Searching Notion for: ${query}`);
-      return [];
+      throw new Error('NOTION_UNAVAILABLE: Cannot search memories - Notion not connected');
     }
 
     console.log(`Searching Notion for: ${query}`);
