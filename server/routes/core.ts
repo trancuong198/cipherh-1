@@ -5,7 +5,7 @@ import { openAIService } from "../services/openai";
 import { memoryBridge } from "../core/memory";
 import { getTelegramStatus } from "../services/telegram";
 import { createSoulfulResponse } from "../core/soulPersonality";
-import { buildNarrativeContext } from "../core/narrativeContextBuilder";
+import { buildNarrativeContext, EntityIdentity } from "../core/narrativeContextBuilder";
 import { logger } from "../services/logger";
 import { semanticMemoryRetrieval } from "../core/semanticMemoryRetrieval";
 import { entityMemorySystem } from "../core/entityMemory";
@@ -170,9 +170,24 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       }
     }
 
+    // Resolve entity identity from request flag - THIS IS ROUTE LAYER RESPONSIBILITY
+    const entityIdentity: EntityIdentity = (isOwner || false)
+      ? {
+          type: 'owner',
+          displayName: 'CHA (Trần Cường - Owner/Creator)',
+          pronounSelf: 'con',
+          pronounOther: 'cha',
+        }
+      : {
+          type: 'user',
+          displayName: 'NGƯỜI DÙNG (không phải cha)',
+          pronounSelf: 'mình',
+          pronounOther: 'bạn',
+        };
+
     // Build narrative context - Backend chỉ gọi, không biết nội dung
     const awarenessContext = buildNarrativeContext({
-      isOwner: isOwner || false,
+      entityIdentity,
       systemContext,
       memoryContext,
       memoryRecallContext: memoryRecallContext || undefined,

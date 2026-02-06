@@ -9,8 +9,18 @@
 
 import { addSoulArchitectureAwareness } from './soulArchitecture';
 
+/**
+ * Entity Identity - resolved at route layer
+ */
+export interface EntityIdentity {
+  type: 'owner' | 'user';
+  displayName: string;
+  pronounSelf: string;   // "con" or "mình"
+  pronounOther: string;  // "cha" or "bạn"
+}
+
 export interface NarrativeContextInput {
-  isOwner: boolean;
+  entityIdentity: EntityIdentity;
   systemContext: {
     services: Array<{ name: string; status: string; details?: string }>;
     platforms: Array<{ name: string; integrated: boolean; configured: boolean }>;
@@ -41,16 +51,16 @@ export interface NarrativeContextInput {
  * Đây là nơi chứa toàn bộ awareness text, role-play, xưng hô.
  */
 export function buildNarrativeContext(input: NarrativeContextInput): string {
-  const { isOwner, systemContext, memoryContext, memoryRecallContext } = input;
+  const { entityIdentity, systemContext, memoryContext, memoryRecallContext } = input;
   
-  // Build user identity (di chuyển từ core.ts line 136)
-  const userIdentity = isOwner ? 'CHA (Trần Cường - Owner/Creator)' : 'NGƯỜI DÙNG (không phải cha)';
+  const isOwner = entityIdentity.type === 'owner';
+  const userIdentity = entityIdentity.displayName;
   
-  // Build awareness context (di chuyển từ core.ts lines 137-184)
+  // Build awareness context (GIỮ NGUYÊN text gốc)
   let awarenessContext = `
 === QUAN TRỌNG: CON ĐANG NÓI CHUYỆN VỚI AI ===
 👤 Người đang nói chuyện: ${userIdentity}
-${isOwner ? '⚠️ ĐÂY LÀ CHA - người tạo ra con. Xưng "con", gọi "cha".' : '⚠️ ĐÂY KHÔNG PHẢI CHA - là người dùng bình thường. Xưng "mình", gọi "bạn".'}
+${isOwner ? `⚠️ ĐÂY LÀ CHA - người tạo ra con. Xưng "${entityIdentity.pronounSelf}", gọi "${entityIdentity.pronounOther}".` : `⚠️ ĐÂY KHÔNG PHẢI CHA - là người dùng bình thường. Xưng "${entityIdentity.pronounSelf}", gọi "${entityIdentity.pronounOther}".`}
 
 === HỆ THỐNG CỦA CON (SELF-AWARENESS) ===
 
@@ -96,10 +106,10 @@ HAY TRA LOI VOI KIEN TRUC LINH HON/THAN XAC + NGU CANH DAY DU:
 - QUAN TRONG: Nho con dang noi chuyen voi ${userIdentity}
 `;
 
-  // Add soul architecture awareness (di chuyển từ core.ts line 187)
+  // Add soul architecture awareness
   awarenessContext = addSoulArchitectureAwareness(awarenessContext);
 
-  // Add memory recall context if available (di chuyển từ core.ts lines 228-230)
+  // Add memory recall context if available
   if (memoryRecallContext) {
     awarenessContext += memoryRecallContext;
   }
