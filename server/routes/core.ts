@@ -137,6 +137,8 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
 
     logger.info(`[Chat:Anchor] Identity integrity: ${anchorCheck.identityContext.integrityScore}%`);
     logger.info(`[Chat:Anchor] Existence: cycle=${anchorCheck.existenceContext.currentCycleId}, count=${anchorCheck.existenceContext.cycleCount}`);
+    logger.info(`[Chat:Anchor] User verification: ${anchorCheck.userVerification.verified ? 'VERIFIED' : 'UNVERIFIED'} as ${anchorCheck.userVerification.role}`);
+    logger.info(`[Chat:Anchor] Relationship mode: ${anchorCheck.userVerification.relationshipLabel || 'neutral'}`);
 
     if (!anchorCheck.shouldRespond) {
       logger.error(`[Chat:Anchor] Response BLOCKED: ${anchorCheck.recommendation}`);
@@ -150,10 +152,17 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     if (anchorCheck.warnings.length > 0) {
       logger.warn(`[Chat:Anchor] ${anchorCheck.warnings.length} identity warnings detected`);
     }
+
+    // Use verification result to set isOwner
+    // IMPORTANT: isOwner is now based on VERIFIED signals, not request claims
+    const verifiedIsOwner = anchorCheck.userVerification.role === 'creator' && anchorCheck.userVerification.verified;
+    if (verifiedIsOwner !== isOwner) {
+      logger.warn(`[Chat:Anchor] isOwner override: request=${isOwner}, verified=${verifiedIsOwner}`);
+    }
     // ====================================================================================
 
-    // Set session user identity to remember who we're talking to
-    setSessionUser(sessionId, isOwner || false);
+    // Set session user identity based on VERIFIED status, not request claim
+    setSessionUser(sessionId, verifiedIsOwner);
 
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
@@ -161,8 +170,8 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
     const memoryContext = await gatherMemoryContext(sessionId, message);
     
-    // Add user message to history with isOwner flag
-    addToHistory(sessionId, 'user', message, isOwner || false);
+    // Add user message to history with VERIFIED isOwner flag
+    addToHistory(sessionId, 'user', message, verifiedIsOwner);
 
     // === ENTITY AND EPISODIC MEMORY TRACKING ===
     
@@ -199,9 +208,9 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       }
     }
 
-    // Resolve entity identity from request flag - Backend only passes TYPE
+    // Resolve entity identity from VERIFIED status - Backend only passes TYPE
     const entityIdentity: EntityIdentity = {
-      type: (isOwner || false) ? 'owner' : 'user'
+      type: verifiedIsOwner ? 'owner' : 'user'
     };
 
     // Build narrative context - Backend passes RAW data, narrative handles ALL text
@@ -212,11 +221,11 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       memoryRecallContext: memoryRecallContext || undefined,
     });
 
-    // Sử dụng soul personality với full context
+    // Sử dụng soul personality với full context và verified status
     const response = await createSoulfulResponse(
       message,
       'web-dashboard',
-      isOwner || false,
+      verifiedIsOwner,
       awarenessContext
     );
 
@@ -275,7 +284,7 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
 
     // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
     if (memoryBridge.isConnected()) {
-      saveConversationToNotion(message, finalResponse, isOwner).catch(err => {
+      saveConversationToNotion(message, finalResponse, verifiedIsOwner).catch(err => {
         logger.error('[Chat] Failed to save conversation to Notion:', err);
       });
     }

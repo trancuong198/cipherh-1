@@ -396,6 +396,7 @@ class IdentityCoreModule {
    * - Not session-dependent
    * - Not platform-dependent
    * - Survives backend restarts (via existenceAnchor integration)
+   * - Verifies user identity by SIGNALS, not claims
    */
   async processIncomingInteraction(params: {
     platform: 'telegram' | 'facebook' | 'web' | 'api';
@@ -416,15 +417,33 @@ class IdentityCoreModule {
       cycleCount: number;
       existenceDuration: number;
     };
+    userVerification: {
+      verified: boolean;
+      role: 'creator' | 'collaborator' | 'user';
+      relationshipLabel: string | null;
+      shouldUseCreatorMode: boolean;
+      responseGuidance: string;
+    };
     warnings: IdentityDriftWarning[];
     recommendation: string;
   }> {
     logger.info(`[IdentityCore:Anchor] Processing interaction from ${params.platform}:${params.userId}`);
 
-    // Import existenceAnchor dynamically to avoid circular dependency
+    // Import modules dynamically to avoid circular dependency
     const { existenceAnchor } = await import('./existenceAnchor');
+    const { identityVerification } = await import('./identityVerification');
 
-    // Get current existence context
+    // STEP 1: Verify user identity by SIGNALS, not claims
+    const verification = await identityVerification.verifyIdentity({
+      userId: params.userId,
+      platform: params.platform,
+      message: params.message,
+    });
+
+    logger.info(`[IdentityCore:Anchor] User verification: verified=${verification.verified}, role=${verification.identity.role}`);
+    logger.info(`[IdentityCore:Anchor] Verification guidance: ${verification.responseGuidance}`);
+
+    // STEP 2: Get current existence context
     const existenceContext = {
       currentCycleId: existenceAnchor.getCurrentCycleId(),
       cycleCount: existenceAnchor.getCycleCount(),
@@ -433,7 +452,7 @@ class IdentityCoreModule {
 
     logger.info(`[IdentityCore:Anchor] Existence context: cycle=${existenceContext.currentCycleId}, count=${existenceContext.cycleCount}`);
 
-    // Perform identity check (detect drift)
+    // STEP 3: Perform identity check (detect drift)
     const warnings = this.performIdentityCheck({
       cycleCount: existenceContext.cycleCount,
       recentActions: ['respond_to_message'],
@@ -471,6 +490,13 @@ class IdentityCoreModule {
       shouldRespond,
       identityContext,
       existenceContext,
+      userVerification: {
+        verified: verification.verified,
+        role: verification.identity.role,
+        relationshipLabel: verification.identity.relationshipLabel,
+        shouldUseCreatorMode: verification.shouldUseCreatorMode,
+        responseGuidance: verification.responseGuidance,
+      },
       warnings,
       recommendation,
     };
