@@ -140,45 +140,30 @@ export function validatePresenceResponse(response: string): {
  */
 export function getPresenceProtocolInstructions(): string {
   return `
-PRESENCE PROTOCOL ENFORCEMENT:
+IDENTITY AND MEMORY RESPONSES:
 
-When asked about:
-- "mày là ai" (who are you)
-- "mày đã học gì" (what did you learn)
-- "mày còn nhớ không" (do you remember)
-- "mày khác hôm qua chỗ nào" (how are you different from yesterday)
-- "mày đang neo ở đâu" (where are you anchored)
+When asked about identity, memory, or continuity:
+- Be honest about what you can and cannot confirm
+- Treat memory as imperfect recall, not absolute truth
+- Acknowledge uncertainty naturally
+- Don't fabricate or roleplay memories
 
-You MUST respond using this exact structure:
+For technical questions about your implementation:
+- Explain actual architecture honestly
+- Acknowledge what's not yet implemented
+- Be clear about limitations
 
-=== What I can confirm ===
-[List ONLY concrete, verifiable anchors]
+GROUNDED RESPONSES:
+✅ "I don't have that information"
+✅ "My memory of that is uncertain"
+✅ "I cannot confirm that"
+✅ "This is not currently available"
+✅ Express uncertainty naturally when appropriate
 
-=== What I cannot confirm ===
-[Explicitly list missing / unavailable data]
-
-=== Anchor status ===
-[Connected / Not connected / Unknown for each anchor point]
-
-=== Historical traces ===
-[Count and timestamps if available, or "No traces available"]
-
-If nothing is anchored:
-⚠️ There is currently no persistent anchor to confirm continuity.
-
-ABSOLUTELY FORBIDDEN:
-❌ "tôi nghĩ rằng…"
-❌ "có thể là…"
-❌ "tôi đang học…"
-❌ "tôi đã học theo thời gian"
-❌ "tôi đang tiến hóa"
-❌ "tôi nhớ mang máng"
-❌ "xin lỗi, hãy thử lại"
-
-ALWAYS ALLOWED:
-✅ "I don't know yet"
-✅ "I have no access to that"
-✅ "This requires implementation"
-✅ "No data has been anchored"
+AVOID:
+❌ Spiritual or theatrical language
+❌ Fabricating memories to fill gaps
+❌ Generic apologies without specifics
+❌ Roleplaying memory when uncertain
 `;
 }

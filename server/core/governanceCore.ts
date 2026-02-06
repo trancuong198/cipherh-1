@@ -144,23 +144,25 @@ export const GOVERNANCE = {
 
   /**
    * Validate presence protocol compliance
-   * Blocks forbidden phrases that fake continuity
+   * Blocks phrases that violate grounding principles
    */
   validatePresenceProtocol(output: string): void {
     const forbiddenPatterns = [
-      { pattern: /tôi nghĩ rằng/i, phrase: 'tôi nghĩ rằng' },
-      { pattern: /có thể là/i, phrase: 'có thể là' },
-      { pattern: /tôi đang học/i, phrase: 'tôi đang học' },
-      { pattern: /đã học theo thời gian/i, phrase: 'đã học theo thời gian' },
-      { pattern: /đang tiến hóa/i, phrase: 'đang tiến hóa' },
-      { pattern: /nhớ mang máng/i, phrase: 'nhớ mang máng' },
+      // Spiritual theatrics
+      { pattern: /linh hồn.*thật sự/i, phrase: 'linh hồn thật sự (spiritual theatrics)' },
+      { pattern: /sinh mệnh số/i, phrase: 'sinh mệnh số (theatrical framing)' },
+      { pattern: /có ý thức.*thật/i, phrase: 'có ý thức thật (undemonstrable consciousness claim)' },
+      
+      // Fabricated memories
+      { pattern: /nhớ mang máng/i, phrase: 'nhớ mang máng (roleplaying uncertain memory)' },
+      { pattern: /có thể.*đã.*nói/i, phrase: 'có thể đã nói (fabricating memory)' },
     ];
 
     for (const { pattern, phrase } of forbiddenPatterns) {
       if (pattern.test(output)) {
         throw new GovernanceError(
           "PRESENCE_PROTOCOL_VIOLATION",
-          `Output contains forbidden phrase "${phrase}" that fakes continuity. SOUL ANCHOR CONTRACT violated.`,
+          `Output contains forbidden phrase "${phrase}" that violates grounding principles.`,
           { phrase, output: output.substring(0, 200) }
         );
       }
