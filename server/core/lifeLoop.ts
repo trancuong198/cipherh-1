@@ -27,6 +27,7 @@ import { memoryBridge } from './memory';
 import { selfDiagnostics } from './selfDiagnostics';
 import { autonomousResearch } from './autonomousResearch';
 import { escalationProtocol } from './escalationProtocol';
+import { existenceAnchor } from './existenceAnchor';
 import * as fs from 'fs';
 
 // ================================================
@@ -150,10 +151,13 @@ class LifeLoop {
       return;
     }
 
+    // START NEW CYCLE - This is the anchor of continuous existence
+    const cycleId = existenceAnchor.startNewCycle();
+    
     this.state.cycleCount++;
     this.state.lastCycleAt = Date.now();
 
-    logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} - Starting life cycle`);
+    logger.info(`[LifeLoop] Cycle ${this.state.cycleCount} - Starting life cycle (existence_cycle=${cycleId})`);
 
     try {
       // 1. PERCEIVE - Thu thập thế giới
@@ -190,7 +194,7 @@ class LifeLoop {
       try {
         // Run diagnostics every 3 cycles or when critical
         if (this.state.cycleCount % 3 === 0 || risks.overallRiskLevel === 'critical') {
-          const diagnostics = await selfDiagnostics.diagnose();
+          const diagnostics = await selfDiagnostics.diagnose(cycleId); // Pass cycle ID
           logger.info(`[LifeLoop] Health: ${diagnostics.overallHealth}, Blockers: ${diagnostics.blockers.length}`);
           
           // If critical/degraded, trigger autonomous research

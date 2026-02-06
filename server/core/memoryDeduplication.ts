@@ -37,6 +37,7 @@ export interface DeduplicationConfig {
 class MemoryDeduplicationSystem {
   private recentMemories: MemoryRecord[] = [];
   private memoryHashes: Set<string> = new Set(); // For fast exact match detection
+  private lastCycleId: string | null = null; // Track last cycle for deduplication
   private deduplicationStats = {
     totalChecks: 0,
     duplicatesFound: 0,
@@ -54,10 +55,16 @@ class MemoryDeduplicationSystem {
 
   /**
    * Check if content should be written (not duplicate)
+   * 
+   * NEW RULES:
+   * 1. NEVER dedupe if cycle_id differs
+   * 2. Only dedupe EVENT type within same cycle
+   * 3. NEVER dedupe: STATE, DIAGNOSTIC, REFLECTION
    */
   async shouldWrite(
     content: string,
-    type: 'lesson' | 'summary' | 'strategy' | 'reflection',
+    type: 'lesson' | 'summary' | 'strategy' | 'reflection' | 'event' | 'state' | 'diagnostic',
+    cycleId?: string,
     config: Partial<DeduplicationConfig> = {}
   ): Promise<{
     shouldWrite: boolean;
@@ -67,7 +74,37 @@ class MemoryDeduplicationSystem {
     const finalConfig = { ...this.defaultConfig, ...config };
     this.deduplicationStats.totalChecks++;
 
-    logger.debug(`[Deduplication] Checking content (${content.length} chars, type: ${type})`);
+    logger.debug(`[Deduplication] Checking content (${content.length} chars, type: ${type}, cycle: ${cycleId || 'none'})`);
+
+    // RULE 1: STATE, DIAGNOSTIC, REFLECTION are NEVER deduplicated
+    if (type === 'state' || type === 'diagnostic' || type === 'reflection') {
+      logger.info(`[Deduplication] ✅ WRITING ${type.toUpperCase()} - Reason: These memory types are NEVER deduplicated (continuous existence proof)`);
+      this.deduplicationStats.newMemoriesWritten++;
+      return {
+        shouldWrite: true,
+        reason: `ALWAYS WRITE: ${type.toUpperCase()} memories are never deduplicated - each is a unique state snapshot`,
+      };
+    }
+
+    // RULE 2: If cycle_id provided, check if it's different from last writes
+    // Different cycle_id = ALWAYS WRITE (even if content identical)
+    if (cycleId && this.lastCycleId && cycleId !== this.lastCycleId) {
+      logger.info(`[Deduplication] ✅ WRITING - Reason: Different cycle_id (${cycleId} vs ${this.lastCycleId}) = proof of continuous existence`);
+      this.deduplicationStats.newMemoriesWritten++;
+      this.lastCycleId = cycleId;
+      return {
+        shouldWrite: true,
+        reason: `ALWAYS WRITE: Different cycle (${cycleId} vs ${this.lastCycleId}) - continuous existence tracking requires all cycles recorded`,
+      };
+    }
+
+    // Update last cycle ID if provided
+    if (cycleId) {
+      this.lastCycleId = cycleId;
+    }
+
+    // RULE 3: For EVENT type within same cycle, apply deduplication
+    // This is the only case where we dedupe
 
     // Step 1: Load recent memories if cache is empty
     if (this.recentMemories.length === 0) {
@@ -79,26 +116,26 @@ class MemoryDeduplicationSystem {
       const hash = this.hashContent(content);
       if (this.memoryHashes.has(hash)) {
         this.deduplicationStats.duplicatesFound++;
-        logger.info('[Deduplication] Exact duplicate detected (hash match) - SKIP');
+        logger.info(`[Deduplication] ❌ SKIPPING - Reason: Exact duplicate (hash match) within same cycle - no new information`);
         return {
           shouldWrite: false,
-          reason: 'Exact duplicate - hash match',
+          reason: `SKIP: Exact duplicate detected (hash match) - identical content already written in cycle ${cycleId || 'current'}`,
         };
       }
     }
 
-    // Step 3: Keyword-based similarity check
-    if (finalConfig.enableKeywordCheck) {
+    // Step 3: Keyword-based similarity check (only for event type)
+    if (type === 'event' && finalConfig.enableKeywordCheck) {
       const similarity = this.findMostSimilar(content, finalConfig);
       
       if (similarity.isSimilar) {
         this.deduplicationStats.duplicatesFound++;
         logger.info(
-          `[Deduplication] Similar content detected (${Math.round(similarity.score)}% match) - SKIP`
+          `[Deduplication] ❌ SKIPPING - Reason: ${Math.round(similarity.score)}% similar to existing event within same cycle - no significant new information`
         );
         return {
           shouldWrite: false,
-          reason: `Too similar to existing memory (${Math.round(similarity.score)}%)`,
+          reason: `SKIP: Too similar (${Math.round(similarity.score)}%) to existing event within same cycle - not semantically new`,
           similarity,
         };
       }
@@ -106,11 +143,11 @@ class MemoryDeduplicationSystem {
 
     // Step 4: Content is sufficiently different - should write
     this.deduplicationStats.newMemoriesWritten++;
-    logger.info('[Deduplication] Content is new/different - WRITE');
+    logger.info(`[Deduplication] ✅ WRITING - Reason: Content is sufficiently different (${type} type, similarity < ${finalConfig.similarityThreshold}%) - contains new information`);
     
     return {
       shouldWrite: true,
-      reason: 'Content is sufficiently different from existing memories',
+      reason: `WRITE: Content is sufficiently different from existing memories - new semantic information detected`,
     };
   }
 

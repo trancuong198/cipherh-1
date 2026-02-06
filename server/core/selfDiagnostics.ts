@@ -53,8 +53,9 @@ export interface Blocker {
 class SelfDiagnosticsEngine {
   /**
    * Run comprehensive self-diagnosis
+   * @param cycleId - Current existence cycle ID for tracking
    */
-  async diagnose(): Promise<DiagnosticReport> {
+  async diagnose(cycleId?: string): Promise<DiagnosticReport> {
     logger.info('[SelfDiagnostics] Running comprehensive self-diagnosis...');
 
     const checks: DiagnosticCheck[] = [];
@@ -174,8 +175,8 @@ class SelfDiagnosticsEngine {
       timestamp: new Date().toISOString(),
     };
 
-    // Log to Notion
-    await this.logDiagnostics(report);
+    // Log to Notion with cycle ID
+    await this.logDiagnostics(report, cycleId);
 
     // Auto-trigger research if needed
     if (researchNeeded.length > 0 && (overallHealth === 'critical' || overallHealth === 'degraded')) {
@@ -314,7 +315,11 @@ class SelfDiagnosticsEngine {
   /**
    * Log diagnostics to Notion
    */
-  private async logDiagnostics(report: DiagnosticReport): Promise<void> {
+  /**
+   * Log diagnostic report to Notion
+   * CRITICAL: This uses storeDiagnostic which NEVER deduplicates
+   */
+  private async logDiagnostics(report: DiagnosticReport, cycleId?: string): Promise<void> {
     try {
       const content = `[SELF-DIAGNOSTICS] ${report.timestamp}
 
@@ -342,12 +347,15 @@ ${report.researchNeeded.length > 0 ? `
 ${report.researchNeeded.map((topic, i) => `${i + 1}. ${topic}`).join('\n')}
 ` : ''}`;
 
-      await memoryBridge.writeLesson(content, {
-        type: 'Diagnostics',
-        tags: ['self-diagnostics', report.overallHealth],
-      });
+      // CRITICAL: Use storeDiagnostic - NEVER deduplicated
+      // Each diagnostic is a snapshot at a specific cycle
+      await memoryBridge.storeDiagnostic(content, {
+        overallHealth: report.overallHealth,
+        blockersCount: report.blockers.length,
+        checksCount: report.checks.length,
+      }, cycleId);
 
-      logger.info('[SelfDiagnostics] Logged diagnostics to Notion');
+      logger.info('[SelfDiagnostics] Logged diagnostics to Notion (DIAGNOSTIC type - never deduped)');
     } catch (error) {
       logger.error(`[SelfDiagnostics] Failed to log diagnostics: ${error}`);
     }

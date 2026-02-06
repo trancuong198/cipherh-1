@@ -15,6 +15,7 @@ import { proactiveQuestionEngine } from "../core/proactiveQuestionEngine";
 import { experienceBasedLearning } from "../core/experienceBasedLearning";
 import { webSearchService } from "../services/webSearch";
 import { socialMediaLearning } from "../services/socialMediaLearning";
+import { identityCore } from "../core/identityCore";
 
 export const coreRouter = Router();
 
@@ -123,8 +124,134 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
 
     logger.info(`[Chat] Message from ${isOwner ? 'owner' : 'user'} (session: ${sessionId}): ${message.substring(0, 50)}...`);
 
-    // Set session user identity to remember who we're talking to
-    setSessionUser(sessionId, isOwner || false);
+    // ====================================================================================
+    // MANDATORY: LOG RAW INPUT FIRST - BEFORE ANY PROCESSING (including Soul Anchor)
+    // System CANNOT respond without logging. This is NON-NEGOTIABLE.
+    // ====================================================================================
+    const { logRawInput, isLoggingAvailable, getStorageUnavailableMessage } = await import('../core/inputLogSystem');
+    
+    // STEP 1: Check if logging is available
+    const loggingAvailable = await isLoggingAvailable();
+    
+    if (!loggingAvailable) {
+      // CRITICAL: Cannot proceed without logging
+      logger.error('[Chat:CRITICAL] Storage unavailable - CANNOT RESPOND');
+      const errorMessage = getStorageUnavailableMessage('web');
+      return res.status(503).json({
+        error: "Storage unavailable",
+        response: errorMessage,
+        reason: 'STORAGE_UNAVAILABLE'
+      });
+    }
+    
+    // STEP 2: Log raw input BEFORE any processing (even before Soul Anchor)
+    const logResult = await logRawInput({
+      platform: 'web',
+      source: 'chat',
+      sender_id: sessionId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: `web-${sessionId}-${Date.now()}`,
+      processing_status: 'pending',
+      metadata: { isOwner }, // This is request claim, may be overridden by verification
+    });
+    
+    if (!logResult.success) {
+      // CRITICAL: Logging failed - cannot proceed
+      logger.error(`[Chat:CRITICAL] Raw input logging failed: ${logResult.error}`);
+      const errorMessage = getStorageUnavailableMessage('web');
+      return res.status(503).json({
+        error: "Logging failed",
+        response: errorMessage,
+        reason: 'LOGGING_FAILED'
+      });
+    }
+    
+    logger.info(`[Chat:INPUT_LOGGED] Conv:${logResult.conversation_id} - Now processing...`);
+    
+    // ====================================================================================
+    // NOW we can proceed with Soul Anchor - raw input is safely logged
+    // ====================================================================================
+
+    // ====================================================================================
+    // SOUL ANCHOR CHECKPOINT - ALL conversations MUST pass through identity core first
+    // This ensures continuous identity across ALL platforms
+    // ====================================================================================
+    const anchorCheck = await identityCore.processIncomingInteraction({
+      platform: 'web',
+      userId: sessionId,
+      message,
+      sessionId,
+    });
+
+    logger.info(`[Chat:Anchor] Identity integrity: ${anchorCheck.identityContext.integrityScore}%`);
+    logger.info(`[Chat:Anchor] Existence: cycle=${anchorCheck.existenceContext.currentCycleId}, count=${anchorCheck.existenceContext.cycleCount}`);
+    logger.info(`[Chat:Anchor] User verification: ${anchorCheck.userVerification.verified ? 'VERIFIED' : 'UNVERIFIED'} as ${anchorCheck.userVerification.role}`);
+    logger.info(`[Chat:Anchor] Relationship mode: ${anchorCheck.userVerification.relationshipLabel || 'neutral'}`);
+
+    // ====================================================================================
+    // TWO-STEP CHA PROTOCOL - Check for fixed response requirement
+    // If Step 1 triggered, MUST return exact fixed response (no AI variation)
+    // ====================================================================================
+    if (anchorCheck.userVerification.requiresFixedResponse && anchorCheck.userVerification.fixedResponse) {
+      logger.info(`[Chat:Anchor:TwoStep] Returning fixed response: "${anchorCheck.userVerification.fixedResponse}"`);
+      
+      // Add user message to history
+      addToHistory(sessionId, 'user', message, false);
+      
+      // Add fixed response to history
+      const fixedResponse = anchorCheck.userVerification.fixedResponse;
+      addToHistory(sessionId, 'assistant', fixedResponse);
+      
+      // Log complete interaction
+      const { logInteraction } = await import('../core/inputLogSystem');
+      await logInteraction({
+        platform: 'web',
+        source: 'chat',
+        sender_id: sessionId,
+        raw_text: message,
+        timestamp: Date.now(),
+        conversation_id: logResult.conversation_id,
+        processing_status: 'processed',
+      }, fixedResponse);
+      
+      // Return EXACT fixed response - no AI processing
+      return res.json({
+        response: fixedResponse,
+        sessionId,
+        isOwner: false, // Not yet verified
+        twoStepProtocol: {
+          step: 1,
+          awaitingStep2: true,
+          message: 'Two-Step CHA Protocol: Step 1 completed, awaiting Step 2'
+        }
+      });
+    }
+    // ====================================================================================
+
+    if (!anchorCheck.shouldRespond) {
+      logger.error(`[Chat:Anchor] Response BLOCKED: ${anchorCheck.recommendation}`);
+      return res.status(503).json({
+        error: "Identity integrity check failed",
+        response: "Hệ thống đang trong quá trình kiểm tra tính toàn vẹn. Vui lòng thử lại sau.",
+        recommendation: anchorCheck.recommendation
+      });
+    }
+
+    if (anchorCheck.warnings.length > 0) {
+      logger.warn(`[Chat:Anchor] ${anchorCheck.warnings.length} identity warnings detected`);
+    }
+
+    // Use verification result to set isOwner
+    // IMPORTANT: isOwner is now based on VERIFIED signals, not request claims
+    const verifiedIsOwner = anchorCheck.userVerification.role === 'creator' && anchorCheck.userVerification.verified;
+    if (verifiedIsOwner !== isOwner) {
+      logger.warn(`[Chat:Anchor] isOwner override: request=${isOwner}, verified=${verifiedIsOwner}`);
+    }
+    // ====================================================================================
+
+    // Set session user identity based on VERIFIED status, not request claim
+    setSessionUser(sessionId, verifiedIsOwner);
 
     // Thu thập TOÀN BỘ system context - self-awareness
     const systemContext = await gatherSystemContext();
@@ -132,8 +259,8 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     // Thu thập MEMORY CONTEXT từ Notion và conversation history (SEMANTIC RETRIEVAL)
     const memoryContext = await gatherMemoryContext(sessionId, message);
     
-    // Add user message to history with isOwner flag
-    addToHistory(sessionId, 'user', message, isOwner || false);
+    // Add user message to history with VERIFIED isOwner flag
+    addToHistory(sessionId, 'user', message, verifiedIsOwner);
 
     // === ENTITY AND EPISODIC MEMORY TRACKING ===
     
@@ -170,9 +297,9 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       }
     }
 
-    // Resolve entity identity from request flag - Backend only passes TYPE
+    // Resolve entity identity from VERIFIED status - Backend only passes TYPE
     const entityIdentity: EntityIdentity = {
-      type: (isOwner || false) ? 'owner' : 'user'
+      type: verifiedIsOwner ? 'owner' : 'user'
     };
 
     // Build narrative context - Backend passes RAW data, narrative handles ALL text
@@ -183,11 +310,11 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       memoryRecallContext: memoryRecallContext || undefined,
     });
 
-    // Sử dụng soul personality với full context
+    // Sử dụng soul personality với full context và verified status
     const response = await createSoulfulResponse(
       message,
       'web-dashboard',
-      isOwner || false,
+      verifiedIsOwner,
       awarenessContext
     );
 
@@ -215,6 +342,43 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       logger.info(`[Chat] Added proactive question: ${bestQuestion.question.substring(0, 50)}...`);
     }
 
+    // ====================================================================================
+    // SOUL ANCHOR VALIDATION - Check response for identity drift before sending
+    // ====================================================================================
+    const responseValidation = identityCore.validateResponse(finalResponse);
+    
+    if (!responseValidation.valid) {
+      logger.error(`[Chat:Anchor] Response validation FAILED - identity drift detected`);
+      logger.error(`[Chat:Anchor] Warnings: ${JSON.stringify(responseValidation.warnings)}`);
+      // In production, might want to regenerate or apply corrections
+      // For now, log and send with warning flag
+    }
+
+    if (responseValidation.warnings.length > 0) {
+      logger.warn(`[Chat:Anchor] Response contains ${responseValidation.warnings.length} identity warnings`);
+    }
+    // ====================================================================================
+    
+    // === LOG COMPLETE INTERACTION ===
+    logger.info('[Chat] Logging complete interaction...');
+    const { logInteraction } = await import('../core/inputLogSystem');
+    
+    const interactionLogResult = await logInteraction({
+      platform: 'web',
+      source: 'chat',
+      sender_id: sessionId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: logResult.conversation_id,
+      processing_status: 'processed',
+      metadata: { verifiedIsOwner },
+    }, finalResponse);
+    
+    if (interactionLogResult.success) {
+      logger.info('[Chat] ✅ Complete interaction logged');
+    } else {
+      logger.error(`[Chat] ❌ Interaction logging failed: ${interactionLogResult.error}`);
+    }
     
     // 5. Record this conversation as an episode (with final response including question)
     const episode = episodicMemorySystem.recordConversation({
@@ -226,14 +390,6 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     
     logger.info(`[Chat] Recorded episode ${episode.id} with ${involvedEntities.length} entities`);
 
-
-    // GHI CONVERSATION VÀO NOTION (BẰNG TIẾNG VIỆT) - async, không block response
-    if (memoryBridge.isConnected()) {
-      saveConversationToNotion(message, finalResponse, isOwner).catch(err => {
-        logger.error('[Chat] Failed to save conversation to Notion:', err);
-      });
-    }
-    
     logger.info(`[Chat] Response generated: ${finalResponse.substring(0, 50)}...`);
 
     // === EXPERIENCE-BASED LEARNING: RECORD THIS INTERACTION ===
@@ -711,6 +867,11 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
         confidence: soulState.confidence,
         energy_level: soulState.energyLevel,
         anomaly_score: soulState.anomalyScore,
+        _cycle_explanation: (lifeLoopStatus.cycleCount === 0 && soulState.cycleCount === 0)
+          ? "Cycle count is 0. Either: (1) Server just started and loops haven't completed first cycle yet, (2) Snapshot files not loading, or (3) Cycles reset. Check data/ directory for snapshots."
+          : lifeLoopStatus.alive 
+            ? `LifeLoop is running. Cycle ${lifeLoopStatus.cycleCount} completed. Snapshot saved to data/life_loop_snapshot.json.`
+            : `Using soulState.cycleCount=${soulState.cycleCount}. LifeLoop not active. Snapshot saved to data/state_snapshot.json.`
       },
       health: {
         status: soulState.confidence >= 70 ? "ỔN ĐỊNH" : 
@@ -723,21 +884,40 @@ coreRouter.get("/core/dashboard", async (_req: Request, res: Response) => {
         total: 0,
         critical: 0,
         high: 0,
+        _status: "NOT_IMPLEMENTED", // Honest: Task tracking not implemented yet
+        _explanation: "Task counting system is a placeholder. Will show real data when task tracker is implemented."
       },
       anomalies: {
         total: Math.floor(soulState.anomalyScore / 10),
         high_severity: Math.floor(soulState.anomalyScore / 20),
+        _explanation: soulState.anomalyScore === 0 
+          ? "No anomalies detected yet. System started recently or operating normally."
+          : `Calculated from anomalyScore=${soulState.anomalyScore}. This is an estimate, not actual anomaly count.`
       },
-      logs,
+      logs: {
+        ...logs,
+        _explanation: logs.total === 0
+          ? "No logs found. Either: (1) Log file doesn't exist yet (server just started), (2) Log file was cleared/rotated, or (3) Logging system not writing. Check logs/app.log file."
+          : `Reading from logs/app.log. File size: ${logs.file_size_kb}KB. Total lines: ${logs.total}.`
+      },
       services: {
         openai: openAIService.isConfigured(),
         notion: memoryBridge.isConnected(),
         scheduler: lifeLoopStatus.alive,
+        _status_explanation: {
+          openai: openAIService.isConfigured() ? "OpenAI API configured and available" : "OpenAI API not configured. Set OPENAI_API_KEY env variable.",
+          notion: memoryBridge.isConnected() ? "Notion API connected and ready to write" : "Notion API not connected. Set NOTION_API_KEY and NOTION_DATABASE_ID env variables.",
+          scheduler: lifeLoopStatus.alive ? "LifeLoop is running autonomously every 5-30 minutes" : "LifeLoop not active. Check if it crashed or was stopped."
+        }
       },
       goals,
       current_focus: soulState.currentFocus,
       last_reflection: lastReflection,
+      reflection_status: lastReflection === "Chưa có phản ánh..."
+        ? "No reflections yet. Either: (1) Reflection loop hasn't run, (2) No reflections stored, or (3) Reflection system not writing to storage."
+        : "Reflection loaded successfully from reflectionLoop system.",
       updated_at: new Date().toISOString(),
+      _truth_philosophy: "This dashboard shows REAL data or explains WHY it's zero. No fake counters. If something is 'Not Implemented', we say so honestly.",
       // Time information for AGI scheduling
       system_time: {
         current_time: now.toISOString(),

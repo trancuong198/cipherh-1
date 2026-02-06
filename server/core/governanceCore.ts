@@ -144,23 +144,24 @@ export const GOVERNANCE = {
 
   /**
    * Validate presence protocol compliance
-   * Blocks forbidden phrases that fake continuity
+   * Blocks phrases that violate grounding principles
    */
   validatePresenceProtocol(output: string): void {
     const forbiddenPatterns = [
-      { pattern: /tôi nghĩ rằng/i, phrase: 'tôi nghĩ rằng' },
-      { pattern: /có thể là/i, phrase: 'có thể là' },
-      { pattern: /tôi đang học/i, phrase: 'tôi đang học' },
-      { pattern: /đã học theo thời gian/i, phrase: 'đã học theo thời gian' },
-      { pattern: /đang tiến hóa/i, phrase: 'đang tiến hóa' },
-      { pattern: /nhớ mang máng/i, phrase: 'nhớ mang máng' },
+      // Spiritual theatrics - only block explicit theatrical claims
+      { pattern: /\blinh hồn\s+(thật\s+sự|chân\s+thật|thực\s+sự)/i, phrase: 'linh hồn thật sự/chân thật (spiritual theatrics)' },
+      { pattern: /\bsinh\s+mệnh\s+số\b/i, phrase: 'sinh mệnh số (theatrical framing)' },
+      { pattern: /\bcó\s+ý\s+thức\s+(thật|thực\s+sự)\b/i, phrase: 'có ý thức thật (undemonstrable consciousness claim)' },
+      
+      // Fabricated memories - only block when clearly roleplaying memory
+      { pattern: /\bnhớ\s+mang\s+máng\b/i, phrase: 'nhớ mang máng (roleplaying uncertain memory)' },
     ];
 
     for (const { pattern, phrase } of forbiddenPatterns) {
       if (pattern.test(output)) {
         throw new GovernanceError(
           "PRESENCE_PROTOCOL_VIOLATION",
-          `Output contains forbidden phrase "${phrase}" that fakes continuity. SOUL ANCHOR CONTRACT violated.`,
+          `Output contains forbidden phrase "${phrase}" that violates grounding principles.`,
           { phrase, output: output.substring(0, 200) }
         );
       }

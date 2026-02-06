@@ -136,8 +136,50 @@ async function handleUpdate(update: any) {
 }
 
 async function chatWithAI(chatId: string, message: string) {
+  // ====================================================================================
+  // MANDATORY: LOG RAW INPUT FIRST - BEFORE ANY PROCESSING
+  // System CANNOT respond without logging. This is NON-NEGOTIABLE.
+  // ====================================================================================
+  const { logRawInput, isLoggingAvailable, handleLoggingFailure, getStorageUnavailableMessage } = await import('../core/inputLogSystem');
+  
   try {
+    // STEP 1: Check if logging is available
+    const loggingAvailable = await isLoggingAvailable();
+    
+    if (!loggingAvailable) {
+      // CRITICAL: Cannot proceed without logging
+      logger.error('[Telegram:CRITICAL] Storage unavailable - CANNOT RESPOND');
+      const errorMessage = getStorageUnavailableMessage('telegram');
+      await sendMessage(chatId, errorMessage);
+      return; // STOP - do not proceed
+    }
+    
+    // STEP 2: Log raw input BEFORE any processing
     const isOwner = chatId === OWNER_CHAT_ID;
+    const logResult = await logRawInput({
+      platform: 'telegram',
+      source: 'bot', // Telegram bot messages
+      sender_id: chatId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: `telegram-${chatId}-${Date.now()}`,
+      processing_status: 'pending',
+      metadata: { isOwner },
+    });
+    
+    if (!logResult.success) {
+      // CRITICAL: Logging failed - cannot proceed
+      logger.error(`[Telegram:CRITICAL] Raw input logging failed: ${logResult.error}`);
+      const errorMessage = getStorageUnavailableMessage('telegram');
+      await sendMessage(chatId, errorMessage);
+      return; // STOP - do not proceed
+    }
+    
+    logger.info(`[Telegram:INPUT_LOGGED] Conv:${logResult.conversation_id} - Now processing...`);
+    
+    // ====================================================================================
+    // NOW we can proceed with processing - raw input is safely logged
+    // ====================================================================================
     
     // Create entity ID for this Telegram user
     const entityId = isOwner ? 'entity_owner_cha' : `entity_telegram_${chatId}`;
@@ -180,15 +222,30 @@ async function chatWithAI(chatId: string, message: string) {
       assistantResponse: response,
     });
     
-    // === SAVE TO NOTION: Ghi cuộc trò chuyện vào Notion bộ nhớ dài hạn ===
-    // LUÔN LUÔN cố gắng ghi - đây là cách hệ thống học và tiến hóa
-    logger.info('[Telegram] Attempting to save conversation to Notion...');
-    try {
-      await saveConversationToNotion(message, response, isOwner, chatId);
-      logger.info('[Telegram] ✅ Conversation save attempt completed');
-    } catch (err) {
-      logger.error('[Telegram] ❌ Failed to save conversation to Notion:', err);
+    // === SAVE COMPLETE INTERACTION: Log the full exchange (input + output) ===
+    logger.info('[Telegram] Logging complete interaction...');
+    const { logInteraction } = await import('../core/inputLogSystem');
+    
+    const interactionLogResult = await logInteraction({
+      platform: 'telegram',
+      source: 'bot',
+      sender_id: chatId,
+      raw_text: message,
+      timestamp: Date.now(),
+      conversation_id: logResult.conversation_id,
+      processing_status: 'processed',
+      metadata: { isOwner },
+    }, response);
+    
+    if (interactionLogResult.success) {
+      logger.info('[Telegram] ✅ Complete interaction logged');
+    } else {
+      logger.error(`[Telegram] ❌ Interaction logging failed: ${interactionLogResult.error}`);
     }
+    
+    // Invalidate context cache
+    const { contextLearningSystem } = await import('../core/contextLearningSystem');
+    contextLearningSystem.invalidateCache();
     
     // Store current interaction for next time (to learn from next message)
     previousInteractions.set(chatId, {
@@ -207,46 +264,6 @@ async function chatWithAI(chatId: string, message: string) {
       ? 'Xin lỗi cha, con gặp lỗi khi xử lý tin nhắn. Cha thử lại nhé!'
       : 'Xin lỗi, tôi gặp lỗi khi xử lý tin nhắn. Vui lòng thử lại!';
     await sendMessage(chatId, errorMsg);
-  }
-}
-
-/**
- * INPUT_LOG for Telegram messages
- * 
- * RULE: EVERY INPUT must create an INPUT_LOG
- * ❌ CẤM bỏ qua
- * ❌ CẤM dedup
- * ❌ CẤM condition kiểu "nếu giống thì thôi"
- */
-async function saveConversationToNotion(
-  userMessage: string, 
-  assistantResponse: string, 
-  isOwner: boolean,
-  chatId: string
-) {
-  const { logInteraction, RawInput } = await import('../core/inputLogSystem');
-  
-  const input: RawInput = {
-    platform: 'telegram',
-    userId: chatId,
-    message: userMessage,
-    timestamp: Date.now(),
-    metadata: { isOwner },
-  };
-
-  try {
-    // Log unconditionally - throws if fails
-    await logInteraction(input, assistantResponse, { isOwner });
-    
-    logger.info('[Telegram] ✅ INPUT_LOG recorded');
-    
-    // Invalidate context cache
-    const { contextLearningSystem } = await import('../core/contextLearningSystem');
-    contextLearningSystem.invalidateCache();
-  } catch (error) {
-    // FAIL LOUDLY - don't hide INPUT_LOG failures
-    logger.error('[Telegram] ❌ CRITICAL: INPUT_LOG FAILED');
-    throw error;
   }
 }
 

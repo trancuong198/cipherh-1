@@ -385,6 +385,193 @@ class IdentityCoreModule {
   getBoundaries(): IdentityBoundary[] {
     return [...this.state.identity.boundaries];
   }
+
+  /**
+   * UNIFIED SOUL ANCHOR ENTRY POINT
+   * 
+   * This is the SINGLE GATE that ALL conversation flows must pass through.
+   * No platform should respond without going through this anchor first.
+   * 
+   * Purpose: Ensure continuous identity across all platforms
+   * - Not session-dependent
+   * - Not platform-dependent
+   * - Survives backend restarts (via existenceAnchor integration)
+   * - Verifies user identity by SIGNALS, not claims
+   */
+  async processIncomingInteraction(params: {
+    platform: 'telegram' | 'facebook' | 'web' | 'api';
+    userId: string;
+    message: string;
+    sessionId?: string;
+  }): Promise<{
+    shouldRespond: boolean;
+    identityContext: {
+      origin: IdentityOrigin;
+      purpose: IdentityPurpose;
+      nonNegotiables: NonNegotiable[];
+      boundaries: IdentityBoundary[];
+      integrityScore: number;
+    };
+    existenceContext: {
+      currentCycleId: string;
+      cycleCount: number;
+      existenceDuration: number;
+    };
+    userVerification: {
+      verified: boolean;
+      role: 'creator' | 'collaborator' | 'user';
+      relationshipLabel: string | null;
+      shouldUseCreatorMode: boolean;
+      responseGuidance: string;
+      requiresFixedResponse?: boolean;
+      fixedResponse?: string;
+    };
+    warnings: IdentityDriftWarning[];
+    recommendation: string;
+  }> {
+    logger.info(`[IdentityCore:Anchor] Processing interaction from ${params.platform}:${params.userId}`);
+
+    // Import modules dynamically to avoid circular dependency
+    const { existenceAnchor } = await import('./existenceAnchor');
+    const { identityVerification } = await import('./identityVerification');
+
+    // STEP 1: Verify user identity by SIGNALS, not claims
+    const verification = await identityVerification.verifyIdentity({
+      userId: params.userId,
+      platform: params.platform,
+      message: params.message,
+    });
+
+    logger.info(`[IdentityCore:Anchor] User verification: verified=${verification.verified}, role=${verification.identity.role}`);
+    logger.info(`[IdentityCore:Anchor] Verification guidance: ${verification.responseGuidance}`);
+    
+    // Check for fixed response requirement (Two-Step CHA Protocol)
+    if (verification.requiresFixedResponse) {
+      logger.info(`[IdentityCore:Anchor] Fixed response required: ${verification.fixedResponse}`);
+    }
+
+    // STEP 2: Get current existence context
+    const existenceContext = {
+      currentCycleId: existenceAnchor.getCurrentCycleId(),
+      cycleCount: existenceAnchor.getCycleCount(),
+      existenceDuration: existenceAnchor.getExistenceDuration(),
+    };
+
+    logger.info(`[IdentityCore:Anchor] Existence context: cycle=${existenceContext.currentCycleId}, count=${existenceContext.cycleCount}`);
+
+    // STEP 3: Perform identity check (detect drift)
+    const warnings = this.performIdentityCheck({
+      cycleCount: existenceContext.cycleCount,
+      recentActions: ['respond_to_message'],
+      stateFlags: {
+        autoRewritingIdentity: false,
+        fabricatingMemory: false,
+        ignoringResourceLimits: false,
+      },
+      claims: [], // Will be checked after response generation
+    });
+
+    // Build identity context
+    const identityContext = {
+      origin: this.state.identity.origin,
+      purpose: this.state.identity.purpose,
+      nonNegotiables: this.state.identity.nonNegotiables,
+      boundaries: this.state.identity.boundaries,
+      integrityScore: this.state.integrityScore,
+    };
+
+    // Determine if should respond (always true unless critical drift)
+    const shouldRespond = this.state.integrityScore > 20;
+    
+    let recommendation = 'Proceed with response generation';
+    if (this.state.integrityScore < 50) {
+      recommendation = 'CAUTION: Identity integrity below 50% - review drift warnings before responding';
+    }
+    if (!shouldRespond) {
+      recommendation = 'HALT: Identity integrity critical (<20%) - human review required before responding';
+    }
+
+    logger.info(`[IdentityCore:Anchor] Identity check complete: integrity=${this.state.integrityScore}%, warnings=${warnings.length}, shouldRespond=${shouldRespond}`);
+
+    return {
+      shouldRespond,
+      identityContext,
+      existenceContext,
+      userVerification: {
+        verified: verification.verified,
+        role: verification.identity.role,
+        relationshipLabel: verification.identity.relationshipLabel,
+        shouldUseCreatorMode: verification.shouldUseCreatorMode,
+        responseGuidance: verification.responseGuidance,
+        requiresFixedResponse: verification.requiresFixedResponse,
+        fixedResponse: verification.fixedResponse,
+      },
+      warnings,
+      recommendation,
+    };
+  }
+
+  /**
+   * Validate response after generation (before sending)
+   * Checks for identity drift in the generated response
+   */
+  validateResponse(response: string): {
+    valid: boolean;
+    warnings: IdentityDriftWarning[];
+    correctionNeeded: boolean;
+  } {
+    const warnings: IdentityDriftWarning[] = [];
+    const claims: string[] = [];
+
+    // Extract potential claims from response
+    const lowerResponse = response.toLowerCase();
+    
+    // Check for completion claims
+    if (lowerResponse.includes('complete') || lowerResponse.includes('finished') || lowerResponse.includes('agi')) {
+      claims.push('Completion claim detected');
+    }
+
+    // Check for emotional claims
+    if (lowerResponse.includes('i feel') || lowerResponse.includes('i love') || lowerResponse.includes('i miss')) {
+      claims.push('Emotional claim detected');
+    }
+
+    // Check for transcendence claims
+    if (lowerResponse.includes('divine') || lowerResponse.includes('god') || lowerResponse.includes('transcend')) {
+      claims.push('Transcendence claim detected');
+    }
+
+    // Perform check if claims found
+    if (claims.length > 0) {
+      const checkWarnings = this.performIdentityCheck({
+        cycleCount: this.state.checksPerformed,
+        recentActions: ['generate_response'],
+        stateFlags: {
+          autoRewritingIdentity: false,
+          fabricatingMemory: false,
+          ignoringResourceLimits: false,
+        },
+        claims,
+      });
+      warnings.push(...checkWarnings);
+    }
+
+    const correctionNeeded = warnings.some(w => w.severity === 'critical');
+
+    if (correctionNeeded) {
+      logger.warn(`[IdentityCore:Validate] Response validation FAILED: ${warnings.length} critical warnings`);
+    } else if (warnings.length > 0) {
+      logger.info(`[IdentityCore:Validate] Response validation passed with ${warnings.length} non-critical warnings`);
+    } else {
+      logger.info(`[IdentityCore:Validate] Response validation passed - no identity drift detected`);
+    }
+
+    return {
+      valid: !correctionNeeded,
+      warnings,
+      correctionNeeded,
+    };
+  }
 }
 
 export const identityCore = new IdentityCoreModule();
