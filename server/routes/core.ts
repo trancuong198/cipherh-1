@@ -770,3 +770,56 @@ coreRouter.get("/core/status", (_req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+/**
+ * Memory System Health Check
+ * Check if the system is properly learning and storing memories
+ */
+coreRouter.get('/api/core/memory-health', async (_req: Request, res: Response) => {
+  try {
+    const { contextLearningSystem } = await import('../core/contextLearningSystem');
+    
+    const notionConnected = memoryBridge.isConnected();
+    const recentMemories = await memoryBridge.readRecentMemories(5);
+    const healthCheck = await contextLearningSystem.getSystemHealthCheck();
+    
+    const health = {
+      status: notionConnected ? 'healthy' : 'degraded',
+      notion: {
+        connected: notionConnected,
+        status: notionConnected ? 'Connected - System CAN learn' : 'NOT Connected - System CANNOT learn',
+        warning: notionConnected ? null : 'Set NOTION_TOKEN in .env to enable learning',
+      },
+      memories: {
+        recentCount: recentMemories.length,
+        totalInSystem: healthCheck.memoriesCount,
+        canLearn: healthCheck.hasContext,
+        lastRefresh: healthCheck.lastRefresh,
+      },
+      creator: {
+        recognized: healthCheck.creatorRecognized,
+        name: healthCheck.creatorRecognized ? 'Trần Cường' : 'Unknown',
+      },
+      recentMemoryTitles: recentMemories.map(m => m.title),
+      systemMessage: notionConnected 
+        ? '✅ System is learning and evolving from Notion memories'
+        : '❌ System CANNOT learn - Notion not connected. Conversations are NOT being saved.',
+      recommendations: notionConnected ? [] : [
+        'Set NOTION_TOKEN environment variable',
+        'Set NOTION_DATABASE_ID environment variable', 
+        'Verify Notion integration is working',
+        'Check server logs for Notion connection errors',
+      ],
+    };
+    
+    res.json(health);
+  } catch (error: any) {
+    logger.error('[MemoryHealth] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to check memory health',
+      message: error.message,
+      status: 'error',
+    });
+  }
+});

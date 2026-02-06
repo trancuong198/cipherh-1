@@ -18,11 +18,16 @@ CipherH là một hệ thống AI **tự trị hoàn toàn** được thiết k�
 - **Proposal-to-Action**: Every idea leads to REAL action, not suggestions
 - **Adaptive timing**: 5-30 minute cycles based on urgency
 
-### 🧠 Intelligence & Memory
+### 🧠 Intelligence & Memory (Backend Orchestration)
+- **Backend Orchestrates**: Notion + Identity Core + Context Learning + OpenAI (tool)
+- **Self-Learning**: System learns from Notion memories, not OpenAI defaults
+- **Context Awareness**: Retrieves learned facts and creator identity from memories
+- **Memory System**: Short-term (RAM) + Long-term (Notion) with deduplication
+- **Evolution**: Improves responses based on past interactions and feedback
+- **Creator Recognition**: Learns who created it from conversations (Trần Cường)
 - **Self-Reflection**: Detects patterns, learns from mistakes
-- **Memory System**: Short-term (RAM) + Long-term (Notion)
-- **Emotional**: Functional emotions from consequences (not hardcoded)
 - **Risk Management**: Self-adjusts behavior based on risk level
+- **Note**: OpenAI is auxiliary tool for language processing, intelligence comes from SYSTEM
 
 ### 🎯 Real Actions (Not Proposals)
 - ✅ Send Telegram messages
