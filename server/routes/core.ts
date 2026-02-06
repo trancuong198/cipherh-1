@@ -463,12 +463,18 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       logger.error('[Chat] Failed to record error in agent_state:', stateError);
     }
     
-    // NO FRIENDLY APOLOGY - Expose the actual error
+    // Expose error type but sanitize details in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const errorMessage = isProduction 
+      ? 'SYSTEM_ERROR: Internal processing error occurred'
+      : `SYSTEM_ERROR: ${error.message}`;
+    
     res.status(500).json({ 
       success: false,
-      error: error.message,
+      error: error.name || 'UNKNOWN_ERROR',
       error_type: error.name || 'UNKNOWN_ERROR',
-      response: `SYSTEM_ERROR: ${error.message}`,
+      response: errorMessage,
+      // Full details logged server-side, not exposed to client in production
     });
   }
 });

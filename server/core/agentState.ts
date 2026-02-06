@@ -19,7 +19,8 @@ import { logger } from '../services/logger';
 import { getUncachableNotionClient, isNotionConnected } from '../services/notionClient';
 
 const AGENT_STATE_FILE = path.join(process.cwd(), 'data', 'agent_state.json');
-const AGENT_STATE_NOTION_DB = '2ac0fc26257080a693d2cdcdc8a37ad0'; // Main CipherH database
+// Use environment variable for Notion database ID, with fallback to main database
+const AGENT_STATE_NOTION_DB = process.env.AGENT_STATE_NOTION_DATABASE_ID || process.env.NOTION_DATABASE_ID || '2ac0fc26257080a693d2cdcdc8a37ad0';
 
 /**
  * System Event Log Entry
@@ -611,7 +612,11 @@ class AgentStateManager {
 // Singleton instance
 export const agentState = new AgentStateManager();
 
-// Auto-initialize on module load
+// Auto-initialize on module load with proper error handling
 agentState.initialize().catch(err => {
-  logger.error('[AgentState] Auto-initialization failed:', err);
+  logger.error('[AgentState] CRITICAL: Auto-initialization failed:', err);
+  logger.error('[AgentState] System will not function properly without agent state');
+  logger.error('[AgentState] Please check data directory permissions and try restarting');
+  // Don't crash the process, but make it very clear state is unavailable
+  // Callers will get "AgentState not initialized" errors when trying to use it
 });
