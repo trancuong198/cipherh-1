@@ -328,7 +328,7 @@ class ReflectionLoopEngine {
   // MEMORY METHODS
   // ================================
 
-  async persistReflection(reflection: ReflectionNote): Promise<boolean> {
+  async persistReflection(reflection: ReflectionNote, cycleId?: string): Promise<boolean> {
     try {
       const memory: ReflectionMemory = {
         timestamp: reflection.timestamp,
@@ -339,13 +339,15 @@ class ReflectionLoopEngine {
         contextualNotes: reflection.notes,
       };
 
-      // Store in memory bridge
+      // CRITICAL: Store using storeReflection - NEVER deduplicated
+      // Each reflection is a snapshot of thought at a specific cycle
       await memoryBridge.storeReflection(
         reflection.notes.join('\n'),
-        { cycle: reflection.cycle, tone: reflection.tone, triggers: reflection.triggers }
+        { cycle: reflection.cycle, tone: reflection.tone, triggers: reflection.triggers },
+        cycleId
       );
 
-      logger.info(`[ReflectionLoop:Memory] Persisted reflection ${reflection.id}`);
+      logger.info(`[ReflectionLoop:Memory] Persisted reflection ${reflection.id} (cycle=${cycleId || 'current'})`);
       return true;
     } catch (error) {
       logger.error(`[ReflectionLoop:Memory] Failed to persist reflection: ${error}`);
