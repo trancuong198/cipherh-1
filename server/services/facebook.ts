@@ -180,6 +180,8 @@ export async function replyToComment(commentId: string, message: string): Promis
 
 /**
  * Auto-reply to a comment with soul - generates human-like response
+ * 
+ * MANDATORY: Logs raw interaction BEFORE any response generation
  */
 export async function autoReplyToComment(
   commentId: string, 
@@ -187,10 +189,52 @@ export async function autoReplyToComment(
   postContext?: string
 ): Promise<boolean> {
   if (!PAGE_ACCESS_TOKEN) {
+    logger.warn('[Facebook] No access token - cannot reply');
     return false;
   }
   
+  // ====================================================================================
+  // MANDATORY: LOG RAW INPUT FIRST - BEFORE ANY PROCESSING
+  // System CANNOT respond without logging. This is NON-NEGOTIABLE.
+  // ====================================================================================
+  const { logRawInput, isLoggingAvailable, getStorageUnavailableMessage } = await import('../core/inputLogSystem');
+  
   try {
+    // STEP 1: Check if logging is available
+    const loggingAvailable = await isLoggingAvailable();
+    
+    if (!loggingAvailable) {
+      // CRITICAL: Cannot proceed without logging
+      logger.error('[Facebook:CRITICAL] Storage unavailable - CANNOT RESPOND to comment');
+      // For Facebook comments, we cannot send error message directly, so just return false
+      // System owner will see in logs that learning is paused
+      return false;
+    }
+    
+    // STEP 2: Log raw input BEFORE any processing
+    const logResult = await logRawInput({
+      platform: 'facebook',
+      source: 'comment',
+      sender_id: commentId, // Use commentId as sender identifier
+      raw_text: commentText,
+      timestamp: Date.now(),
+      conversation_id: `facebook-comment-${commentId}`,
+      processing_status: 'pending',
+      metadata: { postContext },
+    });
+    
+    if (!logResult.success) {
+      // CRITICAL: Logging failed - cannot proceed
+      logger.error(`[Facebook:CRITICAL] Raw input logging failed: ${logResult.error}`);
+      return false;
+    }
+    
+    logger.info(`[Facebook:INPUT_LOGGED] Conv:${logResult.conversation_id} - Now processing comment...`);
+    
+    // ====================================================================================
+    // NOW we can proceed with processing - raw input is safely logged
+    // ====================================================================================
+    
     // Tạo reply có linh hồn như người thật
     const reply = await createSoulfulFacebookReply(commentText, postContext);
     
@@ -208,11 +252,23 @@ export async function autoReplyToComment(
     if (data.id) {
       logger.info(`[Facebook] Auto-reply posted with soul: "${reply.substring(0, 50)}..."`);
       
-      // === SAVE TO NOTION: Ghi interaction vào Notion bộ nhớ dài hạn ===
-      if (memoryBridge.isConnected()) {
-        saveInteractionToNotion(commentText, reply, 'comment').catch(err => {
-          logger.error('[Facebook] Failed to save interaction to Notion:', err);
-        });
+      // === LOG COMPLETE INTERACTION ===
+      const { logInteraction } = await import('../core/inputLogSystem');
+      const interactionLogResult = await logInteraction({
+        platform: 'facebook',
+        source: 'comment',
+        sender_id: commentId,
+        raw_text: commentText,
+        timestamp: Date.now(),
+        conversation_id: logResult.conversation_id,
+        processing_status: 'processed',
+        metadata: { postContext },
+      }, reply);
+      
+      if (interactionLogResult.success) {
+        logger.info('[Facebook] ✅ Complete interaction logged');
+      } else {
+        logger.error(`[Facebook] ❌ Interaction logging failed: ${interactionLogResult.error}`);
       }
       
       // Record as episodic memory
@@ -236,6 +292,8 @@ export async function autoReplyToComment(
 
 /**
  * Create and post a soulful Facebook post
+ * Note: Posts are system-generated content, not user interactions
+ * They don't require the same mandatory raw logging as incoming messages
  */
 export async function createAndPostSoulfulPost(topic: string, link?: string): Promise<FacebookResponse> {
   if (!PAGE_ACCESS_TOKEN || !PAGE_ID) {
@@ -248,123 +306,14 @@ export async function createAndPostSoulfulPost(topic: string, link?: string): Pr
     
     const result = await postToPage(message, link);
     
-    // === SAVE TO NOTION: Ghi post vào Notion bộ nhớ dài hạn ===
-    if (result.success && memoryBridge.isConnected()) {
-      savePostToNotion(topic, message).catch(err => {
-        logger.error('[Facebook] Failed to save post to Notion:', err);
-      });
+    if (result.success) {
+      logger.info('[Facebook] Post created successfully');
     }
     
     return result;
   } catch (error: any) {
     logger.error(`[Facebook] Soulful post creation error: ${error.message}`);
     return { success: false, error: { message: error.message, type: 'creation_error', code: 0 } };
-  }
-}
-
-/**
- * Save Facebook interaction to Notion (in Vietnamese) with DEDUPLICATION
- */
-async function saveInteractionToNotion(
-  userMessage: string, 
-  assistantResponse: string, 
-  type: 'comment' | 'message'
-) {
-  try {
-    const date = new Date();
-    const dateStr = date.toLocaleDateString('vi-VN', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const conversationText = `
-📅 Thời gian: ${dateStr}
-📘 Platform: Facebook
-👤 Loại: ${type === 'comment' ? 'Comment Reply' : 'Message'}
-
-💬 NỘI DUNG TỪ NGƯỜI DÙNG:
-${userMessage}
-
-🤖 TRẢ LỜI CỦA CON:
-${assistantResponse}
-
----
-Ghi chú: Đây là tương tác qua Facebook Page - nơi con giao tiếp với cộng đồng.
-    `.trim();
-
-    // Use deduplication system to check if should write
-    const result = await memoryDeduplicationSystem.writeWithDeduplication(
-      conversationText,
-      'lesson',
-      {
-        similarityThreshold: 80, // 80% similar = skip
-        checkRecentCount: 30, // Check last 30 memories
-      }
-    );
-
-    if (result.written) {
-      logger.info('[Facebook] Interaction saved to Notion (new content)');
-    } else {
-      logger.info(`[Facebook] Interaction NOT saved to Notion (${result.reason})`);
-    }
-  } catch (error) {
-    logger.error('[Facebook] Error saving interaction to Notion:', error);
-    throw error;
-  }
-}
-
-/**
- * Save Facebook post to Notion (in Vietnamese) with DEDUPLICATION
- */
-async function savePostToNotion(topic: string, message: string) {
-  try {
-    const date = new Date();
-    const dateStr = date.toLocaleDateString('vi-VN', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const postText = `
-📅 Thời gian: ${dateStr}
-📘 Platform: Facebook
-📝 Loại: Post
-
-💡 CHỦ ĐỀ:
-${topic}
-
-📢 NỘI DUNG POST:
-${message}
-
----
-Ghi chú: Đây là bài đăng tự động được tạo bởi CipherH trên Facebook Page.
-    `.trim();
-
-    // Use deduplication system to check if should write
-    const result = await memoryDeduplicationSystem.writeWithDeduplication(
-      postText,
-      'lesson',
-      {
-        similarityThreshold: 80, // 80% similar = skip
-        checkRecentCount: 30, // Check last 30 memories
-      }
-    );
-
-    if (result.written) {
-      logger.info('[Facebook] Post saved to Notion (new content)');
-    } else {
-      logger.info(`[Facebook] Post NOT saved to Notion (${result.reason})`);
-    }
-  } catch (error) {
-    logger.error('[Facebook] Error saving post to Notion:', error);
-    throw error;
   }
 }
 
