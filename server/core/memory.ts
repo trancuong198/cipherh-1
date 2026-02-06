@@ -89,6 +89,49 @@ export class MemoryBridge {
     }
   }
 
+  /**
+   * Write raw event to Notion WITHOUT deduplication
+   * USE THIS for event logging - records what happened exactly as it occurred
+   * DO NOT use for semantic memory (use writeLesson/writeSummary for that)
+   */
+  async writeRawEvent(text: string): Promise<{ success: boolean; reason?: string }> {
+    const isConnected = await isNotionConnected();
+    if (!isConnected) {
+      return {
+        success: false,
+        reason: 'logging_unavailable: Notion not connected'
+      };
+    }
+
+    console.log(`[Event Log] Writing raw event: ${text.substring(0, 50)}...`);
+
+    try {
+      const notion = await getUncachableNotionClient();
+      const timestamp = new Date().toISOString();
+      
+      await notion.pages.create({
+        parent: { database_id: this.databaseId },
+        properties: {
+          "tiêu đề": {
+            title: [{ text: { content: `📝 EVENT LOG - ${timestamp}` } }]
+          },
+          "cipher h": {
+            rich_text: [{ text: { content: text.substring(0, 2000) } }]
+          }
+        }
+      });
+      
+      console.log("✅ Raw event logged to Notion");
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error logging raw event:", error);
+      return {
+        success: false,
+        reason: `logging_unavailable: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
   async writeDailySummary(summary: string): Promise<boolean> {
     const isConnected = await isNotionConnected();
     if (!isConnected) {

@@ -317,24 +317,23 @@ ${assistantResponse}
 Ghi chú: Đây là cuộc trò chuyện qua Dashboard Chat - nơi linh hồn CipherH trú ngụ.
     `.trim();
 
-    // Use deduplication system to check if should write
-    const result = await memoryDeduplicationSystem.writeWithDeduplication(
-      conversationText,
-      'lesson',
-      {
-        similarityThreshold: 80, // 80% similar = skip
-        checkRecentCount: 30, // Check last 30 memories
-      }
-    );
+    // RAW EVENT LOGGING: No deduplication, no filtering
+    // Record what happened exactly as it occurred
+    const result = await memoryBridge.writeRawEvent(conversationText);
 
-    if (result.written) {
-      logger.info('[Chat] Conversation saved to Notion (new content)');
+    if (result.success) {
+      logger.info('[Chat] Conversation event logged to Notion');
     } else {
-      logger.info(`[Chat] Conversation NOT saved to Notion (${result.reason})`);
+      logger.warn(`[Chat] Failed to log conversation event: ${result.reason}`);
     }
+    
+    return result;
   } catch (error) {
-    logger.error('[Chat] Error saving conversation to Notion:', error);
-    throw error;
+    logger.error('[Chat] Error logging conversation event:', error);
+    return {
+      success: false,
+      reason: `logging_unavailable: ${error instanceof Error ? error.message : String(error)}`
+    };
   }
 }
 
