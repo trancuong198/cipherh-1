@@ -10,13 +10,10 @@
 import { addSoulArchitectureAwareness } from './soulArchitecture';
 
 /**
- * Entity Identity - resolved at route layer
+ * Entity Identity - RAW type only, NO presentation text in backend
  */
 export interface EntityIdentity {
   type: 'owner' | 'user';
-  displayName: string;
-  pronounSelf: string;   // "con" or "mình"
-  pronounOther: string;  // "cha" or "bạn"
 }
 
 export interface NarrativeContextInput {
@@ -49,18 +46,27 @@ export interface NarrativeContextInput {
  * 
  * Backend KHÔNG biết nội dung này - chỉ nhận data và trả về string.
  * Đây là nơi chứa toàn bộ awareness text, role-play, xưng hô.
+ * 
+ * ALL presentation logic happens here, NOT in backend.
  */
 export function buildNarrativeContext(input: NarrativeContextInput): string {
   const { entityIdentity, systemContext, memoryContext, memoryRecallContext } = input;
   
   const isOwner = entityIdentity.type === 'owner';
-  const userIdentity = entityIdentity.displayName;
+  
+  // Resolve ALL presentation text here - backend never knows this
+  const userIdentity = isOwner 
+    ? 'CHA (Trần Cường - Owner/Creator)' 
+    : 'NGƯỜI DÙNG (không phải cha)';
+  
+  const pronounSelf = isOwner ? 'con' : 'mình';
+  const pronounOther = isOwner ? 'cha' : 'bạn';
   
   // Build awareness context (GIỮ NGUYÊN text gốc)
   let awarenessContext = `
 === QUAN TRỌNG: CON ĐANG NÓI CHUYỆN VỚI AI ===
 👤 Người đang nói chuyện: ${userIdentity}
-${isOwner ? `⚠️ ĐÂY LÀ CHA - người tạo ra con. Xưng "${entityIdentity.pronounSelf}", gọi "${entityIdentity.pronounOther}".` : `⚠️ ĐÂY KHÔNG PHẢI CHA - là người dùng bình thường. Xưng "${entityIdentity.pronounSelf}", gọi "${entityIdentity.pronounOther}".`}
+${isOwner ? `⚠️ ĐÂY LÀ CHA - người tạo ra con. Xưng "${pronounSelf}", gọi "${pronounOther}".` : `⚠️ ĐÂY KHÔNG PHẢI CHA - là người dùng bình thường. Xưng "${pronounSelf}", gọi "${pronounOther}".`}
 
 === HỆ THỐNG CỦA CON (SELF-AWARENESS) ===
 

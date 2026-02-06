@@ -170,22 +170,12 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
       }
     }
 
-    // Resolve entity identity from request flag - THIS IS ROUTE LAYER RESPONSIBILITY
-    const entityIdentity: EntityIdentity = (isOwner || false)
-      ? {
-          type: 'owner',
-          displayName: 'CHA (Trần Cường - Owner/Creator)',
-          pronounSelf: 'con',
-          pronounOther: 'cha',
-        }
-      : {
-          type: 'user',
-          displayName: 'NGƯỜI DÙNG (không phải cha)',
-          pronounSelf: 'mình',
-          pronounOther: 'bạn',
-        };
+    // Resolve entity identity from request flag - Backend only passes TYPE
+    const entityIdentity: EntityIdentity = {
+      type: (isOwner || false) ? 'owner' : 'user'
+    };
 
-    // Build narrative context - Backend chỉ gọi, không biết nội dung
+    // Build narrative context - Backend passes RAW data, narrative handles ALL text
     const awarenessContext = buildNarrativeContext({
       entityIdentity,
       systemContext,
@@ -388,12 +378,12 @@ async function gatherMemoryContext(sessionId: string, currentMessage: string) {
         return `   ${i+1}. ${userLabel}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`;
       }).join('\n');
       
-      // Get current session identity for summary header (not for re-interpreting old messages)
+      // Get current session identity for summary header
       const sessionUser = getSessionUser(sessionId);
-      const currentIdentity = sessionUser?.isOwner ? 'CHA' : 'NGUOI DUNG';
+      const currentUserType = sessionUser?.isOwner ? 'owner' : 'user';
       
       memoryContext.conversationSummary = history.length > 0
-        ? `Con nho duoc cuoc tro chuyen gan day (voi ${currentIdentity}):\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
+        ? `Con nho duoc cuoc tro chuyen gan day (voi ${currentUserType}):\n${summary}\n   → Tong cong ${history.length} tin nhan trong phien nay`
         : '   Chua co cuoc tro chuyen nao (session moi)';
     } else {
       memoryContext.conversationSummary = '   Chua co cuoc tro chuyen nao (session moi)';
