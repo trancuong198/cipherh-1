@@ -5,6 +5,7 @@
 import { SoulStateExport } from "./soulState";
 import { getUncachableNotionClient, isNotionConnected } from "../services/notionClient";
 import { existenceAnchor } from "./existenceAnchor";
+import { logger } from "../services/logger";
 
 // Database ID from user's Notion - CIPHER H database
 const NOTION_DATABASE_ID = "2ac0fc26257080a693d2cdcdc8a37ad0";
@@ -68,12 +69,12 @@ export class MemoryBridge {
     try {
       this.connected = await isNotionConnected();
       if (this.connected) {
-        console.log("MemoryBridge: Notion connected via Replit Integration");
+        logger.info("MemoryBridge: Notion connected via Replit Integration");
       } else {
-        console.log("MemoryBridge: Notion not connected, running in placeholder mode");
+        logger.info("MemoryBridge: Notion not connected, running in placeholder mode");
       }
     } catch (error) {
-      console.log("MemoryBridge: Running in placeholder mode");
+      logger.info("MemoryBridge: Running in placeholder mode");
       this.connected = false;
     }
   }
@@ -97,11 +98,11 @@ export class MemoryBridge {
     });
     
     if (!check.shouldWrite) {
-      console.log(`[Memory] Skipped duplicate ${memoryType}: ${check.reason}`);
+      logger.info(`[Memory] Skipped duplicate ${memoryType}: ${check.reason}`);
       return false; // Return false - nothing was written
     }
 
-    console.log(`[Memory] Writing ${memoryType.toUpperCase()} (cycle=${cycle_id}): ${text.substring(0, 50)}...`);
+    logger.info(`[Memory] Writing ${memoryType.toUpperCase()} (cycle=${cycle_id}): ${text.substring(0, 50)}...`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -124,10 +125,10 @@ export class MemoryBridge {
       // Record memory write in existence anchor
       existenceAnchor.recordMemoryWrite(memoryType.toUpperCase());
 
-      console.log(`✅ ${memoryType} written to Notion (cycle=${cycle_id})`);
+      logger.info(`✅ ${memoryType} written to Notion (cycle=${cycle_id})`);
       return true;
     } catch (error) {
-      console.error(`❌ Error writing ${memoryType} to Notion:`, error);
+      logger.error(`❌ Error writing ${memoryType} to Notion:`, error);
       return false;
     }
   }
@@ -150,7 +151,7 @@ export class MemoryBridge {
     const cycle_id = cycleId || existenceAnchor.getCurrentCycleId();
     const timestamp = new Date().toISOString();
 
-    console.log(`[Event Log] Writing raw event (cycle=${cycle_id}): ${text.substring(0, 50)}...`);
+    logger.info(`[Event Log] Writing raw event (cycle=${cycle_id}): ${text.substring(0, 50)}...`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -172,10 +173,10 @@ export class MemoryBridge {
       // Record memory write in existence anchor
       existenceAnchor.recordMemoryWrite('EVENT');
       
-      console.log(`✅ Raw event logged to Notion (cycle=${cycle_id})`);
+      logger.info(`✅ Raw event logged to Notion (cycle=${cycle_id})`);
       return { success: true };
     } catch (error) {
-      console.error("❌ Error logging raw event:", error);
+      logger.error("❌ Error logging raw event:", error);
       return {
         success: false,
         reason: `logging_unavailable: ${error instanceof Error ? error.message : String(error)}`
@@ -199,11 +200,11 @@ export class MemoryBridge {
     });
     
     if (!check.shouldWrite) {
-      console.log(`[Memory] Skipped duplicate summary: ${check.reason}`);
+      logger.info(`[Memory] Skipped duplicate summary: ${check.reason}`);
       return false; // Return false - nothing was written
     }
 
-    console.log(`Đang ghi tóm tắt hàng ngày vào Notion (${summary.length} ký tự)`);
+    logger.info(`Đang ghi tóm tắt hàng ngày vào Notion (${summary.length} ký tự)`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -224,10 +225,10 @@ export class MemoryBridge {
           }
         }
       });
-      console.log("✅ Tóm tắt ngày đã được ghi vào Notion");
+      logger.info("✅ Tóm tắt ngày đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("❌ Lỗi khi ghi tóm tắt ngày vào Notion:", error);
+      logger.error("❌ Lỗi khi ghi tóm tắt ngày vào Notion:", error);
       return false;
     }
   }
@@ -242,7 +243,7 @@ export class MemoryBridge {
     const cycle_id = cycleId || existenceAnchor.getCurrentCycleId();
     const timestamp = new Date().toISOString();
 
-    console.log(`[Memory] Writing STATE snapshot (cycle=${cycle_id}, state_cycle=${state.cycle_count})`);
+    logger.info(`[Memory] Writing STATE snapshot (cycle=${cycle_id}, state_cycle=${state.cycle_count})`);
 
     // CRITICAL: STATE snapshots are NEVER deduplicated
     // Even if content is identical, different cycles = different states
@@ -283,10 +284,10 @@ Memory Type: STATE
       // Record memory write in existence anchor
       existenceAnchor.recordMemoryWrite('STATE');
       
-      console.log(`✅ State snapshot written to Notion (cycle=${cycle_id})`);
+      logger.info(`✅ State snapshot written to Notion (cycle=${cycle_id})`);
       return true;
     } catch (error) {
-      console.error("❌ Error writing state snapshot to Notion:", error);
+      logger.error("❌ Error writing state snapshot to Notion:", error);
       return false;
     }
   }
@@ -307,11 +308,11 @@ Memory Type: STATE
     });
     
     if (!check.shouldWrite) {
-      console.log(`[Memory] Skipped duplicate strategy: ${check.reason}`);
+      logger.info(`[Memory] Skipped duplicate strategy: ${check.reason}`);
       return false; // Return false - nothing was written
     }
 
-    console.log(`Đang ghi chiến lược ${strategyType} vào Notion`);
+    logger.info(`Đang ghi chiến lược ${strategyType} vào Notion`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -340,10 +341,10 @@ Memory Type: STATE
           }
         }
       });
-      console.log("✅ Chiến lược đã được ghi vào Notion");
+      logger.info("✅ Chiến lược đã được ghi vào Notion");
       return true;
     } catch (error) {
-      console.error("❌ Lỗi khi ghi chiến lược vào Notion:", error);
+      logger.error("❌ Lỗi khi ghi chiến lược vào Notion:", error);
       return false;
     }
   }
@@ -358,7 +359,7 @@ Memory Type: STATE
     const cycle_id = cycleId || existenceAnchor.getCurrentCycleId();
     const timestamp = new Date().toISOString();
 
-    console.log(`[Memory] Storing REFLECTION (cycle=${cycle_id}, ${reflectionText.length} chars)`);
+    logger.info(`[Memory] Storing REFLECTION (cycle=${cycle_id}, ${reflectionText.length} chars)`);
 
     // CRITICAL: REFLECTION memories are NEVER deduplicated
     // Even if the reflection text is identical, different cycles = different reflections
@@ -393,10 +394,10 @@ Memory Type: STATE
       // Record memory write in existence anchor
       existenceAnchor.recordMemoryWrite('REFLECTION');
 
-      console.log(`✅ Reflection stored to Notion (cycle=${cycle_id})`);
+      logger.info(`✅ Reflection stored to Notion (cycle=${cycle_id})`);
       return true;
     } catch (error) {
-      console.error("❌ Error storing reflection to Notion:", error);
+      logger.error("❌ Error storing reflection to Notion:", error);
       return false;
     }
   }
@@ -415,7 +416,7 @@ Memory Type: STATE
     const cycle_id = cycleId || existenceAnchor.getCurrentCycleId();
     const timestamp = new Date().toISOString();
 
-    console.log(`[Memory] Storing DIAGNOSTIC (cycle=${cycle_id}, ${diagnosticText.length} chars)`);
+    logger.info(`[Memory] Storing DIAGNOSTIC (cycle=${cycle_id}, ${diagnosticText.length} chars)`);
 
     // CRITICAL: DIAGNOSTIC memories are NEVER deduplicated
     // Each diagnostic is a health snapshot at a specific time/cycle
@@ -450,10 +451,10 @@ Memory Type: STATE
       // Record memory write in existence anchor
       existenceAnchor.recordMemoryWrite('DIAGNOSTIC');
 
-      console.log(`✅ Diagnostic stored to Notion (cycle=${cycle_id})`);
+      logger.info(`✅ Diagnostic stored to Notion (cycle=${cycle_id})`);
       return true;
     } catch (error) {
-      console.error("❌ Error storing diagnostic to Notion:", error);
+      logger.error("❌ Error storing diagnostic to Notion:", error);
       return false;
     }
   }
@@ -464,7 +465,7 @@ Memory Type: STATE
       throw new Error('NOTION_UNAVAILABLE: Cannot read memories - Notion not connected');
     }
 
-    console.log(`Reading ${limit} recent memories from Notion`);
+    logger.info(`Reading ${limit} recent memories from Notion`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -501,7 +502,7 @@ Memory Type: STATE
 
       return memories;
     } catch (error) {
-      console.error("Error reading memories from Notion:", error);
+      logger.error("Error reading memories from Notion:", error);
       return [];
     }
   }
@@ -512,7 +513,7 @@ Memory Type: STATE
       throw new Error('NOTION_UNAVAILABLE: Cannot search memories - Notion not connected');
     }
 
-    console.log(`Searching Notion for: ${query}`);
+    logger.info(`Searching Notion for: ${query}`);
 
     try {
       const notion = await getUncachableNotionClient();
@@ -534,7 +535,7 @@ Memory Type: STATE
 
       return memories;
     } catch (error) {
-      console.error("Error searching Notion:", error);
+      logger.error("Error searching Notion:", error);
       return [];
     }
   }
@@ -616,7 +617,7 @@ Reason: ${result.reason}${result.cost !== undefined ? `\nCost: $${result.cost}` 
       // Write to Notion as a lesson
       return await this.writeLesson(logEntry);
     } catch (error) {
-      console.error('[MemoryBridge] Failed to log action result:', error);
+      logger.error('[MemoryBridge] Failed to log action result:', error);
       return false;
     }
   }
