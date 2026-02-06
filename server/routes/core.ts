@@ -451,10 +451,24 @@ coreRouter.post("/chat/message", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('[Chat] Error:', error);
+    
+    // Record error in agent state
+    try {
+      await agentState.recordError(`Chat error: ${error.message}`, {
+        platform: 'web',
+        sessionId: req.body.sessionId || 'default',
+        originalMessage: req.body.message?.substring(0, 100),
+      });
+    } catch (stateError) {
+      logger.error('[Chat] Failed to record error in agent_state:', stateError);
+    }
+    
+    // NO FRIENDLY APOLOGY - Expose the actual error
     res.status(500).json({ 
       success: false,
       error: error.message,
-      response: "Xin lỗi, tôi gặp lỗi khi xử lý tin nhắn. Vui lòng thử lại."
+      error_type: error.name || 'UNKNOWN_ERROR',
+      response: `SYSTEM_ERROR: ${error.message}`,
     });
   }
 });

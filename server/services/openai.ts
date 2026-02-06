@@ -119,7 +119,8 @@ ${logsText}`;
 
   async generateInsight(context: string): Promise<string> {
     if (!this.configured || !this.client) {
-      return "Placeholder: AI insight generation khong kha dung - can OPENAI_API_KEY";
+      // NO PLACEHOLDER - Throw error to expose configuration failure
+      throw new Error('OPENAI_NOT_CONFIGURED: Cannot generate insight - OPENAI_API_KEY not set');
     }
 
     try {
@@ -135,17 +136,21 @@ ${logsText}`;
         max_completion_tokens: 500,
       });
 
-      return response.choices[0].message.content || "No insight generated";
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('OPENAI_RESPONSE_EMPTY: OpenAI returned no content');
+      }
+      return content;
     } catch (error) {
-      console.error("OpenAI insight generation error:", error);
-      return "Error generating insight";
+      // Re-throw with context instead of returning friendly message
+      throw new Error(`OPENAI_INSIGHT_GENERATION_FAILED: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   async askQuestion(question: string, context?: string): Promise<string> {
     if (!this.configured || !this.client) {
-      console.log(`[OpenAI] Not configured - returning placeholder response for: "${question}"`);
-      return `Xin lỗi, con chưa được cấu hình OPENAI_API_KEY nên không thể trả lời. Vui lòng thêm OPENAI_API_KEY vào biến môi trường.`;
+      // NO PLACEHOLDER - Throw error to expose configuration failure
+      throw new Error('OPENAI_NOT_CONFIGURED: Cannot ask question - OPENAI_API_KEY not set');
     }
 
     try {
