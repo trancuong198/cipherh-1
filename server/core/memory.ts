@@ -6,6 +6,7 @@ import { SoulStateExport } from "./soulState";
 import { getUncachableNotionClient, isNotionConnected } from "../services/notionClient";
 import { existenceAnchor } from "./existenceAnchor";
 import { logger } from "../services/logger";
+import { agentState } from "./agentState";
 
 // Database ID from user's Notion - CIPHER H database
 const NOTION_DATABASE_ID = "2ac0fc26257080a693d2cdcdc8a37ad0";
@@ -617,23 +618,55 @@ Memory Type: STATE
    * Get memory statistics
    * @returns Memory statistics object
    * 
-   * REMOVED: This method previously returned placeholder zeros.
-   * If you need memory stats, query Notion directly or use agent_state.
+   * Returns real counters from agentState:
+   * - rawMemoryCount: total messages received (proxy for raw interaction data)
+   * - totalMemories: total learned facts stored in system
    */
   getMemoryStats(): { rawMemoryCount: number; totalMemories: number } {
-    throw new Error('NOT_IMPLEMENTED: getMemoryStats() is not implemented. Query Notion database directly or use agent_state for counters.');
+    try {
+      const state = agentState.getState();
+      return {
+        rawMemoryCount: state.total_messages, // Raw interactions
+        totalMemories: state.total_facts_learned, // Learned facts
+      };
+    } catch (error) {
+      logger.warn('[Memory] Failed to get stats from agentState, returning zeros:', error);
+      return {
+        rawMemoryCount: 0,
+        totalMemories: 0,
+      };
+    }
   }
 
   /**
    * Get recent lessons from memory
-   * @param limit Maximum number of lessons to return (currently unused)
-   * @returns Array of recent lessons
+   * @param limit Maximum number of lessons to return
+   * @returns Array of recent lessons from agentState
    * 
-   * REMOVED: This method previously returned empty array.
-   * If you need recent lessons, query Notion directly.
+   * Returns learned facts from agentState as lessons.
+   * Each fact contains: content, learned_at, cycle_id, source_platform, confidence
    */
   getRecentLessons(limit: number = 10): any[] {
-    throw new Error('NOT_IMPLEMENTED: getRecentLessons() is not implemented. Query Notion database directly for recent lessons.');
+    try {
+      const state = agentState.getState();
+      // Get the most recent learned facts, sorted by timestamp descending
+      const recentFacts = [...state.learned_facts]
+        .sort((a, b) => new Date(b.learned_at).getTime() - new Date(a.learned_at).getTime())
+        .slice(0, limit);
+      
+      // Convert to lesson format for compatibility
+      return recentFacts.map(fact => ({
+        content: fact.content,
+        timestamp: fact.learned_at,
+        cycle_id: fact.cycle_id,
+        source: fact.source_platform,
+        confidence: fact.confidence,
+        category: fact.category,
+      }));
+    } catch (error) {
+      logger.warn('[Memory] Failed to get lessons from agentState, returning empty array:', error);
+      return [];
+    }
   }
 
   /**
