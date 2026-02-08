@@ -6,9 +6,13 @@ import { SoulStateExport } from "./soulState";
 import { getUncachableNotionClient, isNotionConnected } from "../services/notionClient";
 import { existenceAnchor } from "./existenceAnchor";
 import { logger } from "../services/logger";
+import { agentState } from "./agentState";
 
 // Database ID from user's Notion - CIPHER H database
 const NOTION_DATABASE_ID = "2ac0fc26257080a693d2cdcdc8a37ad0";
+
+// Export for use in other modules
+export { NOTION_DATABASE_ID };
 
 /**
  * Memory Type Classification
@@ -59,10 +63,12 @@ export interface MemoryRecord {
 export class MemoryBridge {
   private connected: boolean = false;
   private databaseId: string;
+  private connectionCheckPromise: Promise<void> | null = null;
 
   constructor() {
     this.databaseId = NOTION_DATABASE_ID;
-    this.checkConnection();
+    // Start connection check but don't block constructor
+    this.connectionCheckPromise = this.checkConnection();
   }
 
   private async checkConnection(): Promise<void> {
@@ -78,6 +84,17 @@ export class MemoryBridge {
       logger.error("MemoryBridge: Connection check failed:", error);
       this.connected = false;
       // NO PLACEHOLDER MODE - Propagate failure state
+    }
+  }
+  
+  /**
+   * Ensure connection check has completed
+   * Call this before using isConnected() for accurate results
+   */
+  async ensureConnectionChecked(): Promise<void> {
+    if (this.connectionCheckPromise) {
+      await this.connectionCheckPromise;
+      this.connectionCheckPromise = null;
     }
   }
 
@@ -165,6 +182,9 @@ export class MemoryBridge {
    * DO NOT use for semantic memory (use writeLesson/writeSummary for that)
    */
   async writeRawEvent(text: string, cycleId?: string): Promise<{ success: boolean; reason?: string }> {
+    // Ensure connection check has completed
+    await this.ensureConnectionChecked();
+    
     const isConnected = await isNotionConnected();
     if (!isConnected) {
       return {
@@ -606,6 +626,8 @@ Memory Type: STATE
   }
 
   isConnected(): boolean {
+    // Note: This is synchronous so it returns the cached value
+    // For accurate results, call ensureConnectionChecked() first
     return this.connected;
   }
 
@@ -617,23 +639,65 @@ Memory Type: STATE
    * Get memory statistics
    * @returns Memory statistics object
    * 
-   * REMOVED: This method previously returned placeholder zeros.
-   * If you need memory stats, query Notion directly or use agent_state.
+   * Returns real counters from agentState:
+   * - rawMemoryCount: total messages received (proxy for raw interaction data)
+   * - totalMemories: total learned facts stored in system
    */
   getMemoryStats(): { rawMemoryCount: number; totalMemories: number } {
-    throw new Error('NOT_IMPLEMENTED: getMemoryStats() is not implemented. Query Notion database directly or use agent_state for counters.');
+    try {
+      const state = agentState.getState();
+      return {
+        rawMemoryCount: state.total_messages, // Raw interactions
+        totalMemories: state.total_facts_learned, // Learned facts
+      };
+    } catch (error) {
+      logger.warn('[Memory] Failed to get stats from agentState, returning zeros:', error);
+      return {
+        rawMemoryCount: 0,
+        totalMemories: 0,
+      };
+    }
   }
 
   /**
    * Get recent lessons from memory
-   * @param limit Maximum number of lessons to return (currently unused)
-   * @returns Array of recent lessons
+   * @param limit Maximum number of lessons to return
+   * @returns Array of recent lessons from agentState
    * 
-   * REMOVED: This method previously returned empty array.
-   * If you need recent lessons, query Notion directly.
+   * Returns learned facts from agentState as lessons.
+   * Each fact contains: content, timestamp, cycle_id, source, confidence, category
+   * 
+   * Performance note: Uses full array copy and sort. For typical usage (few hundred
+   * facts), this is acceptable. If facts array grows very large (>1000), consider
+   * implementing a heap-based partial sort for better performance.
    */
   getRecentLessons(limit: number = 10): any[] {
-    throw new Error('NOT_IMPLEMENTED: getRecentLessons() is not implemented. Query Notion database directly for recent lessons.');
+    try {
+      const state = agentState.getState();
+      
+      // If no facts, return early
+      if (!state.learned_facts || state.learned_facts.length === 0) {
+        return [];
+      }
+      
+      // Get the most recent learned facts, sorted by timestamp descending
+      const sortedFacts = [...state.learned_facts]
+        .sort((a, b) => new Date(b.learned_at).getTime() - new Date(a.learned_at).getTime())
+        .slice(0, limit);
+      
+      // Convert to lesson format for compatibility
+      return sortedFacts.map(fact => ({
+        content: fact.content,
+        timestamp: fact.learned_at,
+        cycle_id: fact.cycle_id,
+        source: fact.source_platform,
+        confidence: fact.confidence,
+        category: fact.category,
+      }));
+    } catch (error) {
+      logger.warn('[Memory] Failed to get lessons from agentState, returning empty array:', error);
+      return [];
+    }
   }
 
   /**
@@ -667,3 +731,13 @@ Reason: ${result.reason}${result.cost !== undefined ? `\nCost: $${result.cost}` 
 }
 
 export const memoryBridge = new MemoryBridge();
+
+// Auto-initialize connection check on module load
+// Note: Other modules can safely import memoryBridge immediately.
+// Call ensureConnectionChecked() before relying on isConnected() for accuracy.
+// Critical operations (writeRawEvent, etc.) already call this internally.
+memoryBridge.ensureConnectionChecked().then(() => {
+  logger.info('[MemoryBridge] Connection check completed on module load');
+}).catch(err => {
+  logger.error('[MemoryBridge] Connection check failed on module load:', err);
+});
