@@ -536,11 +536,12 @@ healthRouter.get("/health/self-generate", async (_req: Request, res: Response) =
 healthRouter.get("/health/notion-diagnostic", async (_req: Request, res: Response) => {
   try {
     const { isNotionConnected, getUncachableNotionClient, getConnectionMethod } = await import('../services/notionClient');
+    const { NOTION_DATABASE_ID } = await import('../core/memory');
     
     // Check environment variables
     const envCheck = {
       NOTION_TOKEN: process.env.NOTION_TOKEN ? `SET (${process.env.NOTION_TOKEN.substring(0, 10)}...)` : 'NOT SET',
-      NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID || 'NOT SET',
+      NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID || NOTION_DATABASE_ID,
       REPLIT_CONNECTORS_HOSTNAME: process.env.REPLIT_CONNECTORS_HOSTNAME || 'NOT SET',
       REPL_IDENTITY: process.env.REPL_IDENTITY ? 'SET' : 'NOT SET',
       WEB_REPL_RENEWAL: process.env.WEB_REPL_RENEWAL ? 'SET' : 'NOT SET',
@@ -556,7 +557,7 @@ healthRouter.get("/health/notion-diagnostic", async (_req: Request, res: Respons
       try {
         const client = await getUncachableNotionClient();
         const db = await client.databases.retrieve({ 
-          database_id: process.env.NOTION_DATABASE_ID || '2ac0fc26257080a693d2cdcdc8a37ad0'
+          database_id: process.env.NOTION_DATABASE_ID || NOTION_DATABASE_ID
         });
         apiTest = {
           success: true,

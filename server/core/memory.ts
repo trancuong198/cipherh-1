@@ -11,6 +11,9 @@ import { agentState } from "./agentState";
 // Database ID from user's Notion - CIPHER H database
 const NOTION_DATABASE_ID = "2ac0fc26257080a693d2cdcdc8a37ad0";
 
+// Export for use in other modules
+export { NOTION_DATABASE_ID };
+
 /**
  * Memory Type Classification
  * CRITICAL: These types have different deduplication rules
@@ -663,6 +666,10 @@ Memory Type: STATE
    * 
    * Returns learned facts from agentState as lessons.
    * Each fact contains: content, timestamp, cycle_id, source, confidence, category
+   * 
+   * Performance note: Uses full array copy and sort. For typical usage (few hundred
+   * facts), this is acceptable. If facts array grows very large (>1000), consider
+   * implementing a heap-based partial sort for better performance.
    */
   getRecentLessons(limit: number = 10): any[] {
     try {
@@ -674,7 +681,6 @@ Memory Type: STATE
       }
       
       // Get the most recent learned facts, sorted by timestamp descending
-      // Note: For typical usage (few hundred facts), array copy is acceptable
       const sortedFacts = [...state.learned_facts]
         .sort((a, b) => new Date(b.learned_at).getTime() - new Date(a.learned_at).getTime())
         .slice(0, limit);
@@ -727,6 +733,9 @@ Reason: ${result.reason}${result.cost !== undefined ? `\nCost: $${result.cost}` 
 export const memoryBridge = new MemoryBridge();
 
 // Auto-initialize connection check on module load
+// Note: Other modules can safely import memoryBridge immediately.
+// Call ensureConnectionChecked() before relying on isConnected() for accuracy.
+// Critical operations (writeRawEvent, etc.) already call this internally.
 memoryBridge.ensureConnectionChecked().then(() => {
   logger.info('[MemoryBridge] Connection check completed on module load');
 }).catch(err => {
