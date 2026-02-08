@@ -60,10 +60,12 @@ export interface MemoryRecord {
 export class MemoryBridge {
   private connected: boolean = false;
   private databaseId: string;
+  private connectionCheckPromise: Promise<void> | null = null;
 
   constructor() {
     this.databaseId = NOTION_DATABASE_ID;
-    this.checkConnection();
+    // Start connection check but don't block constructor
+    this.connectionCheckPromise = this.checkConnection();
   }
 
   private async checkConnection(): Promise<void> {
@@ -79,6 +81,17 @@ export class MemoryBridge {
       logger.error("MemoryBridge: Connection check failed:", error);
       this.connected = false;
       // NO PLACEHOLDER MODE - Propagate failure state
+    }
+  }
+  
+  /**
+   * Ensure connection check has completed
+   * Call this before using isConnected() for accurate results
+   */
+  async ensureConnectionChecked(): Promise<void> {
+    if (this.connectionCheckPromise) {
+      await this.connectionCheckPromise;
+      this.connectionCheckPromise = null;
     }
   }
 
@@ -166,6 +179,9 @@ export class MemoryBridge {
    * DO NOT use for semantic memory (use writeLesson/writeSummary for that)
    */
   async writeRawEvent(text: string, cycleId?: string): Promise<{ success: boolean; reason?: string }> {
+    // Ensure connection check has completed
+    await this.ensureConnectionChecked();
+    
     const isConnected = await isNotionConnected();
     if (!isConnected) {
       return {
@@ -607,6 +623,8 @@ Memory Type: STATE
   }
 
   isConnected(): boolean {
+    // Note: This is synchronous so it returns the cached value
+    // For accurate results, call ensureConnectionChecked() first
     return this.connected;
   }
 
@@ -707,3 +725,10 @@ Reason: ${result.reason}${result.cost !== undefined ? `\nCost: $${result.cost}` 
 }
 
 export const memoryBridge = new MemoryBridge();
+
+// Auto-initialize connection check on module load
+memoryBridge.ensureConnectionChecked().then(() => {
+  logger.info('[MemoryBridge] Connection check completed on module load');
+}).catch(err => {
+  logger.error('[MemoryBridge] Connection check failed on module load:', err);
+});

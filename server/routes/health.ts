@@ -531,3 +531,56 @@ healthRouter.get("/health/self-generate", async (_req: Request, res: Response) =
     res.status(500).json({ error: error.message });
   }
 });
+
+// Diagnostic endpoint to check Notion connection status
+healthRouter.get("/health/notion-diagnostic", async (_req: Request, res: Response) => {
+  try {
+    const { isNotionConnected, getUncachableNotionClient, getConnectionMethod } = await import('../services/notionClient');
+    
+    // Check environment variables
+    const envCheck = {
+      NOTION_TOKEN: process.env.NOTION_TOKEN ? `SET (${process.env.NOTION_TOKEN.substring(0, 10)}...)` : 'NOT SET',
+      NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID || 'NOT SET',
+      REPLIT_CONNECTORS_HOSTNAME: process.env.REPLIT_CONNECTORS_HOSTNAME || 'NOT SET',
+      REPL_IDENTITY: process.env.REPL_IDENTITY ? 'SET' : 'NOT SET',
+      WEB_REPL_RENEWAL: process.env.WEB_REPL_RENEWAL ? 'SET' : 'NOT SET',
+    };
+    
+    // Check connection method
+    const connectionMethod = await getConnectionMethod();
+    const connected = await isNotionConnected();
+    
+    // Try to create client and test API
+    let apiTest = null;
+    if (connected) {
+      try {
+        const client = await getUncachableNotionClient();
+        const db = await client.databases.retrieve({ 
+          database_id: process.env.NOTION_DATABASE_ID || '2ac0fc26257080a693d2cdcdc8a37ad0'
+        });
+        apiTest = {
+          success: true,
+          database_id: db.id,
+          database_title: db.title?.[0]?.plain_text || 'N/A',
+        };
+      } catch (error: any) {
+        apiTest = {
+          success: false,
+          error: error.message,
+          code: error.code,
+        };
+      }
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      environment_variables: envCheck,
+      connection_method: connectionMethod,
+      is_connected: connected,
+      api_test: apiTest,
+      memoryBridge_isConnected: memoryBridge.isConnected(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
