@@ -644,18 +644,25 @@ Memory Type: STATE
    * @returns Array of recent lessons from agentState
    * 
    * Returns learned facts from agentState as lessons.
-   * Each fact contains: content, learned_at, cycle_id, source_platform, confidence
+   * Each fact contains: content, timestamp, cycle_id, source, confidence, category
    */
   getRecentLessons(limit: number = 10): any[] {
     try {
       const state = agentState.getState();
+      
+      // If no facts, return early
+      if (!state.learned_facts || state.learned_facts.length === 0) {
+        return [];
+      }
+      
       // Get the most recent learned facts, sorted by timestamp descending
-      const recentFacts = [...state.learned_facts]
+      // Note: For typical usage (few hundred facts), array copy is acceptable
+      const sortedFacts = [...state.learned_facts]
         .sort((a, b) => new Date(b.learned_at).getTime() - new Date(a.learned_at).getTime())
         .slice(0, limit);
       
       // Convert to lesson format for compatibility
-      return recentFacts.map(fact => ({
+      return sortedFacts.map(fact => ({
         content: fact.content,
         timestamp: fact.learned_at,
         cycle_id: fact.cycle_id,
