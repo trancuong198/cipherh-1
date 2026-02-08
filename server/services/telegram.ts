@@ -186,7 +186,6 @@ async function chatWithAI(chatId: string, message: string) {
     // ====================================================================================
     // AGENT STATE UPDATE - Record this message in unified state
     // ====================================================================================
-    const isOwner = chatId === OWNER_CHAT_ID;
     try {
       await agentState.recordMessage({
         platform: 'telegram',
